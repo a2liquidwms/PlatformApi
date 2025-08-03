@@ -186,7 +186,7 @@ public class UserService : IUserService
         if (role == null || role.Scope != dto.Scope) return false;
 
         // Check if assignment already exists
-        var existingAssignment = await _context.UserRoleAssignments
+        var existingAssignment = await _context.UserRoles
             .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
                                        ura.RoleId == dto.RoleId &&
                                        ura.TenantId == dto.TenantId &&
@@ -195,7 +195,7 @@ public class UserService : IUserService
 
         if (existingAssignment != null) return true; // Already assigned
 
-        var roleAssignment = new UserRoleAssignment
+        var roleAssignment = new UserRoles
         {
             UserId = user.Id,
             RoleId = dto.RoleId,
@@ -204,7 +204,7 @@ public class UserService : IUserService
             Scope = dto.Scope
         };
 
-        await _context.UserRoleAssignments.AddAsync(roleAssignment);
+        await _context.UserRoles.AddAsync(roleAssignment);
         await _context.SaveChangesAsync();
         return true;
     }
@@ -214,7 +214,7 @@ public class UserService : IUserService
         var user = await GetUserByEmail(dto.Email);
         if (user == null) return false;
 
-        var assignment = await _context.UserRoleAssignments
+        var assignment = await _context.UserRoles
             .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
                                        ura.RoleId == dto.RoleId &&
                                        ura.TenantId == dto.TenantId &&
@@ -223,7 +223,7 @@ public class UserService : IUserService
 
         if (assignment == null) return false;
 
-        _context.UserRoleAssignments.Remove(assignment);
+        _context.UserRoles.Remove(assignment);
         await _context.SaveChangesAsync();
         return true;
     }
@@ -236,21 +236,21 @@ public class UserService : IUserService
         var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == roleId);
         if (role == null || role.Scope != RoleScope.Internal) return false;
 
-        var existingAssignment = await _context.UserRoleAssignments
+        var existingAssignment = await _context.UserRoles
             .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
                                        ura.RoleId == roleId &&
                                        ura.Scope == RoleScope.Internal);
 
         if (existingAssignment != null) return true;
 
-        var roleAssignment = new UserRoleAssignment
+        var roleAssignment = new UserRoles
         {
             UserId = user.Id,
             RoleId = roleId,
             Scope = RoleScope.Internal
         };
 
-        await _context.UserRoleAssignments.AddAsync(roleAssignment);
+        await _context.UserRoles.AddAsync(roleAssignment);
         await _context.SaveChangesAsync();
         return true;
     }
@@ -260,14 +260,14 @@ public class UserService : IUserService
         var user = await GetUserByEmail(email);
         if (user == null) return false;
 
-        var assignment = await _context.UserRoleAssignments
+        var assignment = await _context.UserRoles
             .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
                                        ura.RoleId == roleId &&
                                        ura.Scope == RoleScope.Internal);
 
         if (assignment == null) return false;
 
-        _context.UserRoleAssignments.Remove(assignment);
+        _context.UserRoles.Remove(assignment);
         await _context.SaveChangesAsync();
         return true;
     }
@@ -279,7 +279,7 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<AuthRole>> GetUserRoles(string userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null)
     {
-        var query = _context.UserRoleAssignments
+        var query = _context.UserRoles
             .Where(ura => ura.UserId == userId && ura.Scope == scope);
 
         if (tenantId.HasValue)
@@ -298,10 +298,10 @@ public class UserService : IUserService
     public async Task<IEnumerable<Permission>?> GetUserPermissions(string userId, Guid? tenantId = null, Guid? siteId = null)
     {
         // Get all role assignments for user with hierarchical priority
-        var assignments = await _context.UserRoleAssignments
+        var assignments = await _context.UserRoles
             .Where(ura => ura.UserId == userId)
             .Include(ura => ura.Role)
-            .ThenInclude(r => r!.RolePermissions)
+            .ThenInclude(r => r!.RolePermissions)!
             .ThenInclude(rp => rp.Permission)
             .ToListAsync();
 

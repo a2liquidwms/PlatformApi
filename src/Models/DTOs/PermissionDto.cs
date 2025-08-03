@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using NetStarterCommon.Core.Common.Models.BaseModels;
+using PlatformApi.Models.BaseModels;
 
 namespace PlatformApi.Models.DTOs;
 

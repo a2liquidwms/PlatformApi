@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace NetStarterCommon.Core.Common.Models.BaseModels;
+namespace PlatformApi.Models.BaseModels;
 
 public interface IBaseObject
 {
@@ -17,18 +17,18 @@ public class BaseObject : IBaseObject
     [Column("create_date")]
     public DateTime CreateDate { get; set; }
 
-    [StringLength(30)]
+    [StringLength(50)]
     [Column("create_by")]
     public string? CreatedBy { get; set; }
 
     [Column("last_mod_date")]
     public DateTime? LastModifiedDate { get; set; }
 
-    [MaxLength(30)]
+    [MaxLength(50)]
     [Column("last_mod_by")]
     public string? LastModifiedBy { get; set; }
 
-    [MaxLength(15)]
+    [MaxLength(25)]
     [Column("modify_source")]
     public string? ModifiedSource { get; set; }
 }

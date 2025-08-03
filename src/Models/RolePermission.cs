@@ -1,10 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using NetStarterCommon.Core.Common.Models.BaseModels;
+using PlatformApi.Models.BaseModels;
 
 namespace PlatformApi.Models;
 
-[Table("role_permission")]
+[Table("role_permissions")]
 public class RolePermission : BaseObject
 {
     public Guid Id { get; set; }

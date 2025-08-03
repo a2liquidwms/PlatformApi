@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace NetStarterCommon.Core.Common.Models.BaseModels;
+namespace PlatformApi.Models.BaseModels;
 
 public interface IDEntity
 {

@@ -1,15 +1,18 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
-using NetStarterCommon.Core.Common.Models.BaseModels;
+using PlatformApi.Models.BaseModels;
 
 namespace PlatformApi.Models;
 
+[Table("tenants")]
 [Index(nameof(Code), IsUnique = true)]
 [Index(nameof(Name), IsUnique = true)]
 [Index(nameof(SubDomain), IsUnique = true)]
 public class Tenant : BaseObject
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public Guid Id { get; set; }
     
     [StringLength(10)]
     public required string Code { get; set; }
@@ -19,11 +22,6 @@ public class Tenant : BaseObject
     
     [StringLength(50)] 
     public required string SubDomain { get; set; }
-    
-    [StringLength(2)]
-    public string? State { get; set; }
-    
-    public string? MainAddress { get; set; }
     
     public TenantConfig? TenantConfig { get; set; }
     

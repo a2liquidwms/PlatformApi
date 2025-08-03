@@ -1,9 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using NetStarterCommon.Core.Common.Models.BaseModels;
+using PlatformApi.Models.BaseModels;
 
 namespace PlatformApi.Models;
 
+[Table("user_refresh_tokens")]
 public class RefreshToken : BaseObject
 {
     public Guid Id { get; set; }

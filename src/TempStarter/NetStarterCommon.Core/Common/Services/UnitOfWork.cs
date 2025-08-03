@@ -2,7 +2,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using NetStarterCommon.Core.Common.Models.BaseModels;
+using PlatformApi.Models.BaseModels;
 
 namespace NetStarterCommon.Core.Common.Services
 {

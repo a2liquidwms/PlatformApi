@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
-using NetStarterCommon.Core.Common.Models.BaseModels;
+using PlatformApi.Models.BaseModels;
 
 namespace PlatformApi.Models;
 
@@ -10,7 +10,7 @@ public class AuthUser : IdentityUser
     
     public ICollection<UserSite> UserSites { get; set; } = new List<UserSite>();
     
-    public ICollection<UserRoleAssignment> UserRoleAssignments { get; set; } = new List<UserRoleAssignment>();
+    public ICollection<UserRoles> UserRoles { get; set; } = new List<UserRoles>();
     
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
@@ -30,13 +30,18 @@ public class AuthRole : IdentityRole, IBaseObject
     
     public bool IsSystemRole { get; set; } = false;
 
-    public ICollection<UserRoleAssignment>? UserRoleAssignments { get; set; } = new List<UserRoleAssignment>();
+    public ICollection<UserRoles>? UserRoles { get; set; } = new List<UserRoles>();
     
     public ICollection<RolePermission>? RolePermissions { get; set; } = new List<RolePermission>();
 
     public DateTime CreateDate { get; set; }
+    
+    [StringLength(100)]
     public string? CreatedBy { get; set; }
     public DateTime? LastModifiedDate { get; set; }
+    [StringLength(100)]
     public string? LastModifiedBy { get; set; }
+    
+    [StringLength(30)]
     public string? ModifiedSource { get; set; }
 }

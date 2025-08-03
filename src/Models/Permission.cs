@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using NetStarterCommon.Core.Common.Models.BaseModels;
+using PlatformApi.Models.BaseModels;
 
 namespace PlatformApi.Models;
 
-[Table("permission")]
+[Table("permissions")]
 public class Permission : BaseObject
 {
     [Key]
