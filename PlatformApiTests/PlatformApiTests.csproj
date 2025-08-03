@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <!-- This fixes the entry point conflict warning -->
+        <GenerateProgramFile>false</GenerateProgramFile>
+
+        <!-- If you want to explicitly disable the auto-generated global usings -->
+        <!-- <ImplicitUsings>disable</ImplicitUsings> -->
+
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <NoWarn>$(NoWarn);CS7022</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- xUnit packages -->
+        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.5.6">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+
+        <!-- Test SDK -->
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+
+        <!-- Mocking libraries -->
+        <PackageReference Include="Moq" Version="4.20.72" />
+
+        <!-- Other common test utilities -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Reference to your main project -->
+        <ProjectReference Include="..\src\PlatformApi.csproj" />
+    </ItemGroup>
+
+</Project>

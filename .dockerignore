@@ -1,0 +1,79 @@
+# Git
+.git
+.gitignore
+.gitattributes
+*.md
+README*
+
+# Documentation
+docs/
+*.md
+
+# CI/CD
+.github/
+.vscode/
+.vs/
+.idea/
+
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+**/TestResults/
+**/.vs/
+**/.vscode/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Test files
+**/*Tests/
+**/*.Tests/
+**/test/
+**/tests/
+
+# Node modules (if any)
+node_modules/
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.swp
+*.swo
+*~
+
+# Package files
+*.nupkg
+*.snupkg
+
+# Coverage reports
+coverage/
+*.coverage
+*.coveragexml
+
+# IDE files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# JetBrains
+*.sln.iml
+
+# Local settings
+appsettings.Development.json
+appsettings.Local.json
