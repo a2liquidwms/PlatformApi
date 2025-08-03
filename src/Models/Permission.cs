@@ -18,5 +18,7 @@ public class Permission : BaseObject
     [DefaultValue(false)]
     public bool IsDefaultFlg { get; set; } = false;
     
+    public RoleScope ApplicableScopes { get; set; } = RoleScope.Internal | RoleScope.Tenant | RoleScope.Site;
+    
     public virtual ICollection<RolePermission>? RolePermissions { get; set; }
 }

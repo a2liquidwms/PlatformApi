@@ -8,6 +8,10 @@ public class AuthUser : IdentityUser
 {
     public ICollection<UserTenant> UserTenants { get; set; } = new List<UserTenant>();
     
+    public ICollection<UserSite> UserSites { get; set; } = new List<UserSite>();
+    
+    public ICollection<UserRoleAssignment> UserRoleAssignments { get; set; } = new List<UserRoleAssignment>();
+    
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
 
@@ -15,10 +19,18 @@ public class AuthRole : IdentityRole, IBaseObject
 {
     [StringLength(50)]
     public string? Description { get; set; }
+    
+    public RoleScope Scope { get; set; } = RoleScope.Tenant;
+    
+    public int HierarchyLevel { get; set; } = 2;
+    
+    public Guid? TenantId { get; set; }
+    
+    public Guid? SiteId { get; set; }
+    
+    public bool IsSystemRole { get; set; } = false;
 
-    public bool IsAdmin { get; set; } = false;
-
-    public ICollection<UserTenantRole>? UserTenantRoles { get; set; } = new List<UserTenantRole>();
+    public ICollection<UserRoleAssignment>? UserRoleAssignments { get; set; } = new List<UserRoleAssignment>();
     
     public ICollection<RolePermission>? RolePermissions { get; set; } = new List<RolePermission>();
 

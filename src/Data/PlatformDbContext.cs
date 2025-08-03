@@ -12,7 +12,10 @@ public class PlatformDbContext : IdentityDbContext<AuthUser, AuthRole, string>
     
     public DbSet<TenantConfig> TenantConfigs { get; set; }
     public DbSet<UserTenant> UserTenants { get; set; }
-    public DbSet<UserTenantRole> UserTenantRoles { get; set; }
+    
+    public DbSet<Site> Sites { get; set; }
+    public DbSet<UserSite> UserSites { get; set; }
+    public DbSet<UserRoleAssignment> UserRoleAssignments { get; set; }
     
     public DbSet<Permission> Permissions { get; set; }
     
@@ -45,19 +48,49 @@ public class PlatformDbContext : IdentityDbContext<AuthUser, AuthRole, string>
             .WithMany(u => u.UserTenants)
             .HasForeignKey(ut => ut.UserId);
         
-        // Define UserTenantRole relationships
-        builder.Entity<UserTenantRole>()
-            .HasKey(utr => utr.Id);
+        // Define Site relationships
+        builder.Entity<Site>()
+            .HasOne(s => s.Tenant)
+            .WithMany(t => t.Sites)
+            .HasForeignKey(s => s.TenantId);
+        
+        // Define UserSite relationships
+        builder.Entity<UserSite>()
+            .HasKey(us => new { us.UserId, us.SiteId });
 
-        builder.Entity<UserTenantRole>()
-            .HasOne(utr => utr.UserTenant)
-            .WithMany(ut => ut.UserTenantRoles)
-            .HasForeignKey(utr => new { utr.UserId, utr.TenantId });
+        builder.Entity<UserSite>()
+            .HasOne(us => us.User)
+            .WithMany(u => u.UserSites)
+            .HasForeignKey(us => us.UserId);
 
-        builder.Entity<UserTenantRole>()
-            .HasOne(utr => utr.UserRole)
-            .WithMany(r => r.UserTenantRoles)
-            .HasForeignKey(utr => utr.UserRoleId);
+        builder.Entity<UserSite>()
+            .HasOne(us => us.Site)
+            .WithMany(s => s.UserSites)
+            .HasForeignKey(us => us.SiteId);
+        
+        // Define UserRoleAssignment relationships
+        builder.Entity<UserRoleAssignment>()
+            .HasKey(ura => ura.Id);
+
+        builder.Entity<UserRoleAssignment>()
+            .HasOne(ura => ura.User)
+            .WithMany(u => u.UserRoleAssignments)
+            .HasForeignKey(ura => ura.UserId);
+
+        builder.Entity<UserRoleAssignment>()
+            .HasOne(ura => ura.Role)
+            .WithMany(r => r.UserRoleAssignments)
+            .HasForeignKey(ura => ura.RoleId);
+
+        builder.Entity<UserRoleAssignment>()
+            .HasOne(ura => ura.Tenant)
+            .WithMany()
+            .HasForeignKey(ura => ura.TenantId);
+
+        builder.Entity<UserRoleAssignment>()
+            .HasOne(ura => ura.Site)
+            .WithMany()
+            .HasForeignKey(ura => ura.SiteId);
         
         
         builder.Entity<RefreshToken>()
@@ -80,6 +113,11 @@ public class PlatformDbContext : IdentityDbContext<AuthUser, AuthRole, string>
         
         builder.Entity<Tenant>()
             .Property(t => t.Id)
+            .HasDefaultValueSql("(UUID())");
+        
+        // Configure Site
+        builder.Entity<Site>()
+            .Property(s => s.Id)
             .HasDefaultValueSql("(UUID())");
         
         // Configure UserInvitation

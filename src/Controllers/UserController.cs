@@ -1,16 +1,14 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.JsonWebTokens;
-using NetStarterCommon.Core.Common.Constants;
 using NetStarterCommon.Core.Common.Permissions;
 using NetStarterCommon.Core.Common.Tenant;
-using PlatformApi.Data;
 using PlatformApi.Models.DTOs;
 using PlatformApi.Services;
 
 namespace PlatformApi.Controllers;
 
 [Route("api/v1/user")]
+[ApiController]
 public class UserController : ControllerBase
 {
     private readonly ILogger<UserController> _logger;
@@ -18,7 +16,10 @@ public class UserController : ControllerBase
     private readonly IUserService _userService;
     private readonly TenantHelper _tenantHelper;
 
-    public UserController(ILogger<UserController> logger, IMapper mapper, IUserService userService,
+    public UserController(
+        ILogger<UserController> logger,
+        IMapper mapper,
+        IUserService userService,
         TenantHelper tenantHelper)
     {
         _logger = logger;
@@ -27,264 +28,182 @@ public class UserController : ControllerBase
         _tenantHelper = tenantHelper;
     }
 
-    //must be open to all for Permission Checks
-    [RequirePermission("default:all")]
-    [HttpGet("my/roles/{tenantId:Guid?}")]
-    public async Task<ActionResult<IEnumerable<PermissionDto>>> GetMyRoles([FromRoute] Guid? tenantId)
-    {
-        var userId = HttpContext.User.Claims.FirstOrDefault(x => x.Type == CommonConstants.ClaimUserId)?.Value ??
-                     throw new InvalidOperationException("No User Set");
-
-        var roles = await _userService.GetUserRoles(userId, tenantId);
-
-        return Ok(_mapper.Map<IEnumerable<RoleDto>>(roles));
-    }
-
-    [RequireTenantAccess]
-    [RequirePermission("default:all")]
-    [HttpGet("my/tenants")]
-    public async Task<ActionResult<IEnumerable<TenantDto>>> GetMyTenants()
-    {
-        var userId = HttpContext.User.Claims.FirstOrDefault(x => x.Type == CommonConstants.ClaimUserId)?.Value ??
-                     throw new InvalidOperationException("No User Set");
-
-        var tenants = await _userService.GetUserTenants(userId);
-
-        return Ok(_mapper.Map<IEnumerable<TenantDto>>(tenants));
-    }
-
-    //must be open to all for Permission Checks
-    [HttpGet("my/permissions/{tenantId:Guid?}")]
-    public async Task<ActionResult<IEnumerable<PermissionDto>>> GetMyPermissions([FromRoute] Guid? tenantId)
-    {
-        var userId = HttpContext.User.Claims.FirstOrDefault(x => x.Type == CommonConstants.ClaimUserId)?.Value ??
-                     throw new InvalidOperationException("No User Set");
-
-        var perms = await _userService.GetUserPermissions(userId, tenantId);
-
-        return Ok(_mapper.Map<IEnumerable<PermissionDto>>(perms));
-    }
-
-    //must be open to all for Permission Checks
-    [RequirePermission("default:all")]
-    [HttpGet("check/permission/{tenantId:Guid?}")]
-    public async Task<ActionResult<bool>> CheckPermissions([FromRoute] Guid? tenantId,
-        [FromQuery] string permissionCode)
-    {
-        var userId = HttpContext.User.Claims.FirstOrDefault(x => x.Type == JwtRegisteredClaimNames.Sub)?.Value ??
-                     throw new InvalidOperationException("No User Set");
-
-        var hasPermission = await _userService.DoesUserHavePermission(userId, permissionCode, tenantId);
-
-        return Ok(hasPermission);
-    }
-    
-    [RequireTenantAccess]
-    [RequirePermission(RolePermissionConstants.TenantAdminManageUsers)]
-    [HttpGet("users")]
-    public async Task<ActionResult<IEnumerable<TenantUserWithRolesDto>>> GetTenantUsers()
+    // Get all tenant users
+    [RequirePermission("tenant.admin.manage.users")]
+    [HttpGet("tenant/{tenantId:guid}/users")]
+    public async Task<ActionResult<IEnumerable<TenantUserWithRolesDto>>> GetTenantUsers([FromRoute] Guid tenantId)
     {
         try
         {
-            var tenantId = _tenantHelper.GetTenantId();
-
-            var usersWithRoles = await _userService.GetTenantUsersWithNonGuestRoles(tenantId);
-
-            return Ok(usersWithRoles);
+            var users = await _userService.GetTenantUsers(tenantId);
+            return Ok(users);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting tenant users");
-            return BadRequest(ex.Message);
+            _logger.LogError(ex, "Error getting tenant users for tenant {TenantId}", tenantId);
+            return StatusCode(500, "Internal server error");
         }
     }
 
-    [RequireTenantAccess]
-    [RequirePermission(RolePermissionConstants.TenantManageBeaconConfig)]
-    [HttpGet("users/departmentLeads")]
-    public async Task<ActionResult<IEnumerable<UserEmailDto>>> GetDepartmentLeads()
+    // Get all site users
+    [RequirePermission("tenant.manage.beacon.config")]
+    [HttpGet("site/{siteId:guid}/users")]
+    public async Task<ActionResult<IEnumerable<SiteUserWithRolesDto>>> GetSiteUsers([FromRoute] Guid siteId)
     {
         try
         {
-            var tenantId = _tenantHelper.GetTenantId();
-
-            var users = await _userService.GetTenantUsersByRoleName(tenantId, "Department Lead");
-
-            var userEmailDtos = _mapper.Map<IEnumerable<UserEmailDto>>(users);
-
-            return Ok(userEmailDtos);
+            var users = await _userService.GetSiteUsers(siteId);
+            return Ok(users);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting tenant users by role name");
-            return BadRequest(ex.Message);
+            _logger.LogError(ex, "Error getting site users for site {SiteId}", siteId);
+            return StatusCode(500, "Internal server error");
         }
     }
 
-    [RequireTenantAccess]
-    [RequirePermission(RolePermissionConstants.TenantManageBeaconConfig)]
-    [HttpGet("users/departmentEmployees")]
-    public async Task<ActionResult<IEnumerable<UserEmailDto>>> GetDepartmentEmployees()
+    // Add user to tenant (tenant role optional)
+    [RequirePermission("tenant.admin.manage.users")]
+    [HttpPost("tenant/add")]
+    public async Task<ActionResult> AddUserToTenant([FromBody] AddUserToTenantDto dto)
     {
         try
         {
-            var tenantId = _tenantHelper.GetTenantId();
-
-            var users = await _userService.GetTenantUsersByRoleName(tenantId, "Department Employee");
-
-            var userEmailDtos = _mapper.Map<IEnumerable<UserEmailDto>>(users);
-
-            return Ok(userEmailDtos);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting tenant users by role name");
-            return BadRequest(ex.Message);
-        }
-    }
-
-    [RequireTenantAccess]
-    [RequirePermission(RolePermissionConstants.TenantAdminManageUsers)]
-    [HttpPost("user/add/role")]
-    public async Task<ActionResult> AddUserToTenant([FromBody] AddUserToRoleRequest request)
-    {
-        try
-        {
-            var tenantId = _tenantHelper.GetTenantId();
-
-            // Find user by email
-            var user = await _userService.GetUserByEmail(request.Email);
-            if (user == null)
-                return BadRequest("User not found");
-
-            var result = await _userService.AddUserToRole(user.Id, tenantId, request.RoleId);
-
-            if (result)
+            var result = await _userService.AddUserToTenant(dto);
+            if (!result)
             {
-                _logger.LogInformation($"Added user {request.Email} to tenant {tenantId} with role {request.RoleId}");
-                return Ok(new { Message = "User added to tenant successfully" });
+                return BadRequest("Failed to add user to tenant. User may not exist.");
             }
-
-            return BadRequest("Failed to add user to tenant");
+            
+            return Ok(new { Message = "User added to tenant successfully" });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding user to tenant");
-            return BadRequest(ex.Message);
+            return StatusCode(500, "Internal server error");
         }
     }
 
-    [RequireTenantAccess]
-    [RequirePermission(RolePermissionConstants.TenantAdminManageUsers)]
-    [HttpPost("user/delete/role")]
-    public async Task<ActionResult> RemoveUserFromRole([FromBody] RemoveUserFromRoleRequest request)
+    // Add user to site (with site role required)
+    [RequirePermission("tenant.manage.beacon.config")]
+    [HttpPost("site/add")]
+    public async Task<ActionResult> AddUserToSite([FromBody] AddUserToSiteDto dto)
     {
         try
         {
-            var tenantId = _tenantHelper.GetTenantId();
-
-            // Find user by email
-            var user = await _userService.GetUserByEmail(request.Email);
-            if (user == null)
-                return BadRequest("User not found");
-
-            var result = await _userService.RemoveUserFromRole(user.Id, tenantId, request.RoleId);
-
-            if (result)
+            var result = await _userService.AddUserToSite(dto);
+            if (!result)
             {
-                _logger.LogInformation($"Removed user {request.Email} from role {request.RoleId} in tenant {tenantId}");
-                return Ok(new { Message = "User removed from role successfully" });
+                return BadRequest("Failed to add user to site. User or site may not exist, or role is invalid.");
             }
+            
+            return Ok(new { Message = "User added to site successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding user to site");
+            return StatusCode(500, "Internal server error");
+        }
+    }
 
-            return BadRequest("Failed to remove user from role");
+    // Add user to role (scope-aware)
+    [RequirePermission("tenant.admin.manage.users")]
+    [HttpPost("role/add")]
+    public async Task<ActionResult> AddUserToRole([FromBody] AddUserToRoleDto dto)
+    {
+        try
+        {
+            var result = await _userService.AddUserToRole(dto);
+            if (!result)
+            {
+                return BadRequest("Failed to add user to role. User may not exist, role may be invalid, or scope mismatch.");
+            }
+            
+            return Ok(new { Message = "User added to role successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding user to role");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Remove user from role (scope-aware)
+    [RequirePermission("tenant.admin.manage.users")]
+    [HttpPost("role/remove")]
+    public async Task<ActionResult> RemoveUserFromRole([FromBody] RemoveUserFromRoleDto dto)
+    {
+        try
+        {
+            var result = await _userService.RemoveUserFromRole(dto);
+            if (!result)
+            {
+                return BadRequest("Failed to remove user from role. Assignment may not exist.");
+            }
+            
+            return Ok(new { Message = "User removed from role successfully" });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error removing user from role");
-            return BadRequest(ex.Message);
+            return StatusCode(500, "Internal server error");
         }
     }
-    
-    [RequireTenantAccess]
-    [RequirePermission(RolePermissionConstants.TenantAdminManageUsers)]
-    [HttpPost("invite")]
-    public async Task<ActionResult<InvitationResponse>> InviteUser([FromBody] InviteUserRequest request)
+
+    // Add internal role to user (system-wide)
+    [RequirePermission("systemadmin.manage.users")]
+    [HttpPost("internal-role/add")]
+    public async Task<ActionResult> AddInternalRole([FromBody] AddInternalRoleDto dto)
     {
         try
         {
-            var userId = HttpContext.User.Claims.FirstOrDefault(x => x.Type == CommonConstants.ClaimUserId)?.Value 
-                ?? throw new InvalidOperationException("No User Set");
-            
-            var tenantId = _tenantHelper.GetTenantId();
-            
-            // Override the tenant ID from the helper to ensure consistency
-            request.TenantId = tenantId;
-            
-            var result = await _userService.InviteUserAsync(request, userId);
-            
-            if (result.Success)
+            var result = await _userService.AddInternalRole(dto.Email, dto.RoleId);
+            if (!result)
             {
-                _logger.LogInformation("User invitation sent successfully for {Email} in tenant {TenantId}", 
-                    request.Email, tenantId);
-                return Ok(result);
+                return BadRequest("Failed to add internal role. User may not exist or role is not an internal role.");
             }
             
-            return BadRequest(result);
+            return Ok(new { Message = "Internal role added successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending user invitation for {Email}", request.Email);
-            return BadRequest(new InvitationResponse
+            _logger.LogError(ex, "Error adding internal role");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Remove internal role from user (system-wide)
+    [RequirePermission("systemadmin.manage.users")]
+    [HttpPost("internal-role/remove")]
+    public async Task<ActionResult> RemoveInternalRole([FromBody] RemoveInternalRoleDto dto)
+    {
+        try
+        {
+            var result = await _userService.RemoveInternalRole(dto.Email, dto.RoleId);
+            if (!result)
             {
-                Success = false,
-                Message = "Failed to send invitation"
-            });
-        }
-    }
-    
-    [RequireTenantAccess]
-    [RequirePermission(RolePermissionConstants.TenantAdminManageUsers)]
-    [HttpPost("exists")]
-    public async Task<ActionResult<UserExistenceCheckDto>> CheckUserExists([FromBody] CheckUserExistsRequest request)
-    {
-        try
-        {
-            var tenantId = _tenantHelper.GetTenantId();
+                return BadRequest("Failed to remove internal role. Assignment may not exist.");
+            }
             
-            var result = await _userService.CheckUserExistenceAsync(request.Email, tenantId);
-            
-            _logger.LogInformation("User existence check for {Email} in tenant {TenantId} - Found", request.Email, tenantId);
-            return Ok(result);
-        }
-        catch (NotFoundException ex)
-        {
-            _logger.LogInformation("User existence check for {Email} - Not found: {Message}", request.Email, ex.Message);
-            return NotFound(new { Message = ex.Message });
+            return Ok(new { Message = "Internal role removed successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking user existence for {Email}", request.Email);
-            return BadRequest(new { Message = "Failed to check user existence" });
+            _logger.LogError(ex, "Error removing internal role");
+            return StatusCode(500, "Internal server error");
         }
     }
-    
-    [RequireTenantAccess]
-    [RequirePermission(RolePermissionConstants.TenantAdminManageUsers)]
-    [HttpGet("invitations")]
-    public async Task<ActionResult<IEnumerable<UserInvitationDto>>> GetPendingInvitations()
-    {
-        try
-        {
-            var tenantId = _tenantHelper.GetTenantId();
-            
-            var pendingInvitations = await _userService.GetPendingInvitationsAsync(tenantId);
-            
-            return Ok(_mapper.Map<IEnumerable<UserInvitationDto>>(pendingInvitations));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving pending invitations");
-            return BadRequest(new { Message = "Failed to retrieve pending invitations" });
-        }
-    }
+}
+
+// Additional DTOs for internal role management
+public class AddInternalRoleDto
+{
+    public required string Email { get; set; }
+    public required string RoleId { get; set; }
+}
+
+public class RemoveInternalRoleDto
+{
+    public required string Email { get; set; }
+    public required string RoleId { get; set; }
 }

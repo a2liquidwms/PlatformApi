@@ -1,638 +1,323 @@
-using System.Security.Cryptography;
-using System.Text.Json;
-using System.Web;
+using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
-using NetStarterCommon.Core.Common.Constants;
 using NetStarterCommon.Core.Common.Services;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
-using PlatformApi.Models.Messages;
 
 namespace PlatformApi.Services;
 
 public class UserService : IUserService
 {
-    private readonly ILogger<UserService> _logger;
     private readonly PlatformDbContext _context;
-    private readonly IUnitOfWork<PlatformDbContext> _uow;
-    private readonly ITenantService _tenantService;
-    private readonly IPermissionService _permissionService;
-    private readonly IMemoryCache _cache;
-    private readonly ISnsService _snsService;
-    private readonly IEmailService _emailService;
-    private readonly IConfiguration _configuration;
-    private readonly IBrandingService _brandingService;
+    private readonly UserManager<AuthUser> _userManager;
+    private readonly IMapper _mapper;
+    private readonly ILogger<UserService> _logger;
 
-    public UserService(ILogger<UserService> logger, PlatformDbContext context, IUnitOfWork<PlatformDbContext> uow,
-        ITenantService tenantService, IPermissionService permissionService, IMemoryCache cache, ISnsService snsService, 
-        IEmailService emailService, IConfiguration configuration, IBrandingService brandingService)
+    public UserService(
+        PlatformDbContext context,
+        UserManager<AuthUser> userManager,
+        IMapper mapper,
+        ILogger<UserService> logger)
     {
-        _logger = logger;
         _context = context;
-        _uow = uow;
-        _tenantService = tenantService;
-        _permissionService = permissionService;
-        _cache = cache;
-        _snsService = snsService;
-        _emailService = emailService;
-        _configuration = configuration;
-        _brandingService = brandingService;
+        _userManager = userManager;
+        _mapper = mapper;
+        _logger = logger;
     }
 
-    public async Task<IEnumerable<AuthRole>> GetUserRoles(string userId, Guid? tenantId)
+    public async Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsers(Guid tenantId)
     {
-        var roles = new List<AuthRole>();
-
-        var defaultRole = _context.Roles.FirstOrDefault(x => x.Name == "Default");
-
-        if (defaultRole != null)
-        {
-            roles.Add(defaultRole);
-        }
-
-        if (tenantId.HasValue)
-        {
-            var tenantRoles = await
-                (from userTenantRole in _context.UserTenantRoles
-                    join role in _context.Roles on userTenantRole.UserRoleId equals role.Id
-                    where userTenantRole.UserId == userId
-                    where userTenantRole.TenantId == tenantId
-                    select new AuthRole
-                    {
-                        Id = role.Id,
-                        Name = role.Name,
-                        IsAdmin = role.IsAdmin
-                    }).Distinct().ToListAsync();
-
-            roles.AddRange(tenantRoles);
-        }
-        
-        var adminRoles = await GetUserAdminRoles(userId);
-        roles.AddRange(adminRoles);
-
-        return roles;
-    }
-
-    public async Task<IEnumerable<Permission>?> GetUserPermissions(string userId, Guid? tenantId)
-    {
-        var cacheKey = GetCacheKey(userId, tenantId);
-
-        if (!_cache.TryGetValue(cacheKey, out List<Permission>? userPermissions))
-        {
-            _logger.LogInformation($"Fetching new user permissions - {cacheKey}");
-
-            userPermissions = await FetchUserPermissions(userId, tenantId);
-
-            var cacheOptions = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(10)) // Adjust expiration as needed
-                .SetAbsoluteExpiration(TimeSpan.FromMinutes(45));
-
-            _cache.Set(cacheKey, userPermissions, cacheOptions);
-        }
-
-        return userPermissions;
-    }
-
-    private string GetCacheKey(string userId, Guid? tenantId)
-    {
-        string cacheKey = $"Perms-{userId}";
-        if (tenantId.HasValue)
-        {
-            cacheKey += $"-{tenantId}";
-        }
-        return cacheKey;
-    }
-    
-    public bool InvalidateUserPermissions(string userId, Guid? tenantId = null)
-    {
-        _logger.LogInformation($"Invalidating Cache Perms for - {userId}");
-        //remove non tenant cache too
-        if (tenantId.HasValue)
-        {
-            var cacheUserKey = GetCacheKey(userId, null);
-            _cache.Remove(cacheUserKey);
-        }
-        var cacheKey = GetCacheKey(userId, tenantId);
-        _cache.Remove(cacheKey);
-        return true;
-    }
-    
-    
-    public async Task<IEnumerable<Tenant?>> GetUserTenants(string userId)
-    {
-        var tenants = await _context.UserTenants
-            .Where(utr => utr.UserId == userId)
-            .Include(utr => utr.Tenant)
-            .Select(utr => utr.Tenant)
-            .Distinct()
+        var userTenants = await _context.UserTenants
+            .Where(ut => ut.TenantId == tenantId)
+            .Include(ut => ut.User)
+            .Select(ut => ut.User!)
             .ToListAsync();
 
-        return tenants;
-    }
-
-    private async Task<List<Permission>> FetchUserPermissions(string userId, Guid? tenantId)
-    {
-        var perms = new List<Permission>();
-        var defaultPermissions = await (
-            from permission in _context.Permissions
-            where permission.IsDefaultFlg == true
-            select new Permission
-            {
-                Code = permission.Code
-            }).ToListAsync();
-
-        perms.AddRange(defaultPermissions);
-
-        if (tenantId.HasValue)
-        {
-            var tenantPermissions = await
-                (from userTenantRole in _context.UserTenantRoles
-                    join role in _context.Roles on userTenantRole.UserRoleId equals role.Id
-                    join rolePermission in _context.RolePermissions on role.Id equals rolePermission.UserRoleId
-                    join permission in _context.Permissions on rolePermission.PermissionCode equals permission.Code
-                    where userTenantRole.UserId == userId
-                    where userTenantRole.TenantId == tenantId
-                    select new Permission
-                    {
-                        Code = permission.Code
-                    }).Distinct().ToListAsync();
-
-            perms.AddRange(tenantPermissions);
-        }
-
-        var adminPermissions = await
-            (from userRole in _context.UserRoles
-                join role in _context.Roles on userRole.RoleId equals role.Id
-                join rolePermission in _context.RolePermissions on role.Id equals rolePermission.UserRoleId
-                join permission in _context.Permissions on rolePermission.PermissionCode equals permission.Code
-                where userRole.UserId == userId
-                where role.IsAdmin == true
-                select new Permission
-                {
-                    Code = permission.Code
-                }).Distinct().ToListAsync();
+        var result = new List<TenantUserWithRolesDto>();
         
-        perms.AddRange(adminPermissions);
-
-
-        return perms;
-    }
-
-    public async Task<bool> DoesUserHavePermission(string userId, string checkPermission, Guid? tenantId)
-    {
-        var perms = await GetUserPermissions(userId, tenantId);
-
-        return perms?.Any(p => p.Code.Equals(checkPermission, StringComparison.OrdinalIgnoreCase)) ?? false;
-    }
-
-    public async Task<bool> AddUserToRole(string userId, Guid tenantId, string roleId)
-    {
-        // Ensure tenant exists
-        var tenant = await _tenantService.GetById(tenantId);
-        if (tenant == null)
-            throw new NotFoundException("Tenant not Found");
-
-        // Ensure user exists
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
-            throw new NotFoundException("User not found");
-
-        // Ensure role exists and is not admin
-        var role = await _permissionService.GetRoleById(roleId, true);
-        if (role == null)
-            throw new NotFoundException($"Role with ID {roleId} does not exist");
-        if (role.IsAdmin)
-            throw new Exception("Cannot add user to AdminRole");
-
-        // Auto-create UserTenant if it doesn't exist
-        var userTenant = await _context.UserTenants
-            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TenantId == tenantId);
-
-        if (userTenant == null)
+        foreach (var user in userTenants)
         {
-            userTenant = new UserTenant
-            {
-                UserId = userId,
-                TenantId = tenantId
-            };
-            _context.UserTenants.Add(userTenant);
-            await _uow.CompleteAsync(); // Save to get the UserTenant created
-        }
-
-        // Check if user already has this role
-        var existingRole = await _context.UserTenantRoles
-            .FirstOrDefaultAsync(utr => utr.UserId == userId &&
-                                        utr.TenantId == tenantId &&
-                                        utr.UserRoleId == roleId);
-
-        if (existingRole != null)
-            throw new ArgumentException("User already has this role");
-
-        // Add the role
-        var newUserRole = new UserTenantRole
-        {
-            TenantId = tenantId,
-            UserRoleId = roleId,
-            UserId = userId
-        };
-
-        _context.UserTenantRoles.Add(newUserRole);
-        await _uow.CompleteAsync();
-
-        //invalidate cached permissions
-        InvalidateUserPermissions(userId, tenantId);
-        
-        return true;
-    }
-
-    public async Task<bool> AddUserToTenant(string userId, Guid tenantId)
-    {
-        // Ensure tenant
-        var tenant = await _tenantService.GetById(tenantId);
-
-        if (tenant == null)
-        {
-            throw new NotFoundException($"Tenant not Found");
-        }
-
-        // Retrieve the role by its ID
-        var user = await _context.Users.Where(u => u.Id == userId).FirstOrDefaultAsync();
-
-        if (user == null)
-        {
-            throw new NotFoundException($"User with ID {userId} does not exist.");
-        }
-
-        var alreadyExists = await _context.UserTenants.Where(u => u.UserId == userId && u.TenantId == tenantId)
-            .FirstOrDefaultAsync();
-
-        if (alreadyExists != null)
-        {
-            throw new ArgumentException($"User already exists on tenant.");
-        }
-
-        //add user to role
-        var newUserTenant = new UserTenant()
-        {
-            TenantId = tenantId,
-            UserId = userId
-        };
-
-        _context.UserTenants.Add(newUserTenant);
-        await _uow.CompleteAsync();
-        _logger.LogInformation($"Added user:{userId} to tenant - {tenantId}");
-        return true;
-    }
-
-    public async Task<bool> AddUserToAdminRole(string userId, string roleId)
-    {
-        // Retrieve the role by its ID
-        var role = await _permissionService.GetRoleById(roleId, true);
-
-        if (role == null)
-        {
-            throw new NotFoundException($"Role with ID {roleId} does not exist.");
-        }
-
-        if (!role.IsAdmin)
-        {
-            throw new Exception($"Wrong role");
-        }
-
-        // Retrieve the role by its ID
-        var user = await _context.Users.Where(u => u.Id == userId).FirstOrDefaultAsync();
-
-        if (user == null)
-        {
-            throw new NotFoundException($"User with ID {userId} does not exist.");
-        }
-
-        //might want to send email on this.  toDo 
-
-        //add user to role
-        var newUserRole = new IdentityUserRole<string>()
-        {
-            UserId = userId,
-            RoleId = roleId
-        };
-
-        _context.UserRoles.Add(newUserRole);
-        await _uow.CompleteAsync();
-
-        return true;
-    }
-
-    private async Task<IEnumerable<AuthRole>> GetUserAdminRoles(string userId)
-    {
-        var adminRoles = await
-            (from role in _context.Roles
-                join userRole in _context.UserRoles on role.Id equals userRole.RoleId
-                where userRole.UserId == userId
-                where role.IsAdmin == true
-                select new AuthRole
-                {
-                    Id = role.Id,
-                    Name = role.Name,
-                    IsAdmin = role.IsAdmin
-                }).Distinct().ToListAsync();
-
-        return adminRoles;
-    }
-
-    public async Task<IEnumerable<AuthUser>> GetTenantUsers(Guid tenantId, bool includeRoles = false)
-    {
-        var query = from userTenant in _context.UserTenants
-            join user in _context.Users on userTenant.UserId equals user.Id
-            where userTenant.TenantId == tenantId
-            select user;
-
-        var users = await query.Distinct().ToListAsync();
-
-        // if (includeRoles)
-        // {
-        //     // Load roles for each user
-        //     foreach (var user in users)
-        //     {
-        //         var userRoles = await GetUserRoles(user.Id, tenantId);
-        //         // Note: You might want to create a UserWithRolesDto to include roles in the response
-        //         // For now, this method just returns users, roles will be handled in the controller
-        //     }
-        // }
-
-        return users;
-    }
-    
-    public async Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsersWithNonGuestRoles(Guid tenantId)
-    {
-        // Query to get users who have non-guest roles in the tenant
-        var usersWithRoles = await (
-            from userTenantRole in _context.UserTenantRoles
-            join user in _context.Users on userTenantRole.UserId equals user.Id
-            join role in _context.Roles on userTenantRole.UserRoleId equals role.Id
-            where userTenantRole.TenantId == tenantId
-            where role.Id != AuthApiConstants.GUEST_ROLE // Exclude guest roles
-            select new
+            var roles = await GetUserRoles(user.Id, RoleScope.Tenant, tenantId);
+            var roleNoPerm = _mapper.Map<List<RoleNoPermissionDto>>(roles);
+            
+            result.Add(new TenantUserWithRolesDto
             {
                 UserId = user.Id,
-                UserEmail = user.Email,
-                RoleId = role.Id,
-                RoleName = role.Name,
-                RoleIsAdmin = role.IsAdmin
-            }).ToListAsync();
-
-        // Group by user and create the result DTOs
-        var result = usersWithRoles
-            .GroupBy(x => new { x.UserId, x.UserEmail })
-            .Select(group => new TenantUserWithRolesDto
-            {
-                UserId = group.Key.UserId,
-                Email = group.Key.UserEmail!,
-                Roles = group.Select(r => new RoleNoPermissionDto()
-                {
-                    Id = r.RoleId,
-                    Name = r.RoleName!
-                }).ToList()
-            })
-            .ToList();
+                Email = user.Email!,
+                Roles = roleNoPerm
+            });
+        }
 
         return result;
     }
 
-    public async Task<bool> RemoveUserFromRole(string userId, Guid tenantId, string roleId)
+    public async Task<IEnumerable<SiteUserWithRolesDto>> GetSiteUsers(Guid siteId)
     {
-        // Ensure tenant exists
-        var tenant = await _tenantService.GetById(tenantId);
-        if (tenant == null)
-            throw new NotFoundException("Tenant not Found");
+        var userSites = await _context.UserSites
+            .Where(us => us.SiteId == siteId)
+            .Include(us => us.User)
+            .Select(us => us.User!)
+            .ToListAsync();
 
-        // Ensure user exists
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
-            throw new NotFoundException("User not found");
-
-        // Ensure role exists
-        var role = await _permissionService.GetRoleById(roleId, true);
-        if (role == null)
-            throw new NotFoundException($"Role with ID {roleId} does not exist");
-
-        // Find the user tenant role record
-        var userTenantRole = await _context.UserTenantRoles
-            .FirstOrDefaultAsync(utr => utr.UserId == userId &&
-                                        utr.TenantId == tenantId &&
-                                        utr.UserRoleId == roleId);
-
-        if (userTenantRole == null)
-            throw new ArgumentException("User does not have this role");
-
-        // Remove the role
-        _context.UserTenantRoles.Remove(userTenantRole);
-        await _uow.CompleteAsync();
-
-        //invalidate cached permissions
-        InvalidateUserPermissions(userId, tenantId);
+        var result = new List<SiteUserWithRolesDto>();
         
-        _logger.LogInformation($"Removed user:{userId} from role:{roleId} in tenant:{tenantId}");
+        foreach (var user in userSites)
+        {
+            var roles = await GetUserRoles(user.Id, RoleScope.Site, siteId: siteId);
+            var roleNoPerm = _mapper.Map<List<RoleNoPermissionDto>>(roles);
+            
+            result.Add(new SiteUserWithRolesDto
+            {
+                UserId = user.Id,
+                Email = user.Email!,
+                SiteId = siteId,
+                Roles = roleNoPerm
+            });
+        }
+
+        return result;
+    }
+
+    public async Task<bool> AddUserToTenant(AddUserToTenantDto dto)
+    {
+        var user = await GetUserByEmail(dto.Email);
+        if (user == null) return false;
+
+        // Check if user is already in tenant
+        var existingUserTenant = await _context.UserTenants
+            .FirstOrDefaultAsync(ut => ut.UserId == user.Id && ut.TenantId == dto.TenantId);
+
+        if (existingUserTenant == null)
+        {
+            // Add user to tenant
+            var userTenant = new UserTenant
+            {
+                UserId = user.Id,
+                TenantId = dto.TenantId
+            };
+            
+            await _context.UserTenants.AddAsync(userTenant);
+        }
+
+        // Add role if specified
+        if (!string.IsNullOrEmpty(dto.RoleId))
+        {
+            var roleDto = new AddUserToRoleDto
+            {
+                Email = dto.Email,
+                TenantId = dto.TenantId,
+                RoleId = dto.RoleId,
+                Scope = RoleScope.Tenant
+            };
+            
+            await AddUserToRole(roleDto);
+        }
+
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> AddUserToSite(AddUserToSiteDto dto)
+    {
+        var user = await GetUserByEmail(dto.Email);
+        if (user == null) return false;
+
+        // Get site to ensure it exists and get tenant info
+        var site = await _context.Sites
+            .FirstOrDefaultAsync(s => s.Id == dto.SiteId);
+        if (site == null) return false;
+
+        // Ensure user is in the tenant first
+        var userTenant = await _context.UserTenants
+            .FirstOrDefaultAsync(ut => ut.UserId == user.Id && ut.TenantId == site.TenantId);
+
+        if (userTenant == null)
+        {
+            // Add user to tenant first
+            userTenant = new UserTenant
+            {
+                UserId = user.Id,
+                TenantId = site.TenantId
+            };
+            await _context.UserTenants.AddAsync(userTenant);
+        }
+
+        // Check if user is already in site
+        var existingUserSite = await _context.UserSites
+            .FirstOrDefaultAsync(us => us.UserId == user.Id && us.SiteId == dto.SiteId);
+
+        if (existingUserSite == null)
+        {
+            // Add user to site
+            var userSite = new UserSite
+            {
+                UserId = user.Id,
+                SiteId = dto.SiteId,
+                TenantId = site.TenantId
+            };
+            
+            await _context.UserSites.AddAsync(userSite);
+        }
+
+        // Add required role
+        var roleDto = new AddUserToRoleDto
+        {
+            Email = dto.Email,
+            TenantId = site.TenantId,
+            SiteId = dto.SiteId,
+            RoleId = dto.RoleId,
+            Scope = RoleScope.Site
+        };
+        
+        await AddUserToRole(roleDto);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> AddUserToRole(AddUserToRoleDto dto)
+    {
+        var user = await GetUserByEmail(dto.Email);
+        if (user == null) return false;
+
+        // Validate role exists and matches scope
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == dto.RoleId);
+        if (role == null || role.Scope != dto.Scope) return false;
+
+        // Check if assignment already exists
+        var existingAssignment = await _context.UserRoleAssignments
+            .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
+                                       ura.RoleId == dto.RoleId &&
+                                       ura.TenantId == dto.TenantId &&
+                                       ura.SiteId == dto.SiteId &&
+                                       ura.Scope == dto.Scope);
+
+        if (existingAssignment != null) return true; // Already assigned
+
+        var roleAssignment = new UserRoleAssignment
+        {
+            UserId = user.Id,
+            RoleId = dto.RoleId,
+            TenantId = dto.TenantId,
+            SiteId = dto.SiteId,
+            Scope = dto.Scope
+        };
+
+        await _context.UserRoleAssignments.AddAsync(roleAssignment);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> RemoveUserFromRole(RemoveUserFromRoleDto dto)
+    {
+        var user = await GetUserByEmail(dto.Email);
+        if (user == null) return false;
+
+        var assignment = await _context.UserRoleAssignments
+            .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
+                                       ura.RoleId == dto.RoleId &&
+                                       ura.TenantId == dto.TenantId &&
+                                       ura.SiteId == dto.SiteId &&
+                                       ura.Scope == dto.Scope);
+
+        if (assignment == null) return false;
+
+        _context.UserRoleAssignments.Remove(assignment);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> AddInternalRole(string email, string roleId)
+    {
+        var user = await GetUserByEmail(email);
+        if (user == null) return false;
+
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == roleId);
+        if (role == null || role.Scope != RoleScope.Internal) return false;
+
+        var existingAssignment = await _context.UserRoleAssignments
+            .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
+                                       ura.RoleId == roleId &&
+                                       ura.Scope == RoleScope.Internal);
+
+        if (existingAssignment != null) return true;
+
+        var roleAssignment = new UserRoleAssignment
+        {
+            UserId = user.Id,
+            RoleId = roleId,
+            Scope = RoleScope.Internal
+        };
+
+        await _context.UserRoleAssignments.AddAsync(roleAssignment);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> RemoveInternalRole(string email, string roleId)
+    {
+        var user = await GetUserByEmail(email);
+        if (user == null) return false;
+
+        var assignment = await _context.UserRoleAssignments
+            .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
+                                       ura.RoleId == roleId &&
+                                       ura.Scope == RoleScope.Internal);
+
+        if (assignment == null) return false;
+
+        _context.UserRoleAssignments.Remove(assignment);
+        await _context.SaveChangesAsync();
         return true;
     }
 
     public async Task<AuthUser?> GetUserByEmail(string email)
     {
-        return await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+        return await _userManager.FindByEmailAsync(email);
     }
-    
-    public async Task<IEnumerable<AuthRole>> GetUserRolesExcludingGuest(string userId, Guid? tenantId)
-    {
-        var roles = new List<AuthRole>();
 
-        // Get non-guest roles only
+    public async Task<IEnumerable<AuthRole>> GetUserRoles(string userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null)
+    {
+        var query = _context.UserRoleAssignments
+            .Where(ura => ura.UserId == userId && ura.Scope == scope);
+
         if (tenantId.HasValue)
-        {
-            var tenantRoles = await
-                (from userTenantRole in _context.UserTenantRoles
-                    join role in _context.Roles on userTenantRole.UserRoleId equals role.Id
-                    where userTenantRole.UserId == userId
-                    where userTenantRole.TenantId == tenantId
-                    where role.Id != AuthApiConstants.GUEST_ROLE // Exclude Guest role
-                    select new AuthRole
-                    {
-                        Id = role.Id,
-                        Name = role.Name,
-                        IsAdmin = role.IsAdmin
-                    }).Distinct().ToListAsync();
+            query = query.Where(ura => ura.TenantId == tenantId);
+            
+        if (siteId.HasValue)
+            query = query.Where(ura => ura.SiteId == siteId);
 
-            roles.AddRange(tenantRoles);
-        }
-
-        // Still include admin roles (these are not tenant-specific guest roles)
-        var adminRoles = await GetUserAdminRoles(userId);
-        roles.AddRange(adminRoles);
-    
-        return roles;
-    }
-
-    public async Task<IEnumerable<AuthUser>> GetTenantUsersByRoleName(Guid tenantId, string roleName)
-    {
-        // Query to get users who have the specified role in the tenant
-        var users = await (
-            from userTenantRole in _context.UserTenantRoles
-            join user in _context.Users on userTenantRole.UserId equals user.Id
-            join role in _context.Roles on userTenantRole.UserRoleId equals role.Id
-            where userTenantRole.TenantId == tenantId
-            where EF.Functions.Like(role.Name, roleName)
-            select user
-            ).Distinct().ToListAsync();
-
-        return users;
-    }
-
-    public async Task PublishUserModifiedAsync(string userId, string email)
-    {
-        var userModifiedMessage = new UserModifiedMessage
-        {
-            UserId = userId,
-            Email = email
-        };
-        await _snsService.PublishUserModifiedAsync(userModifiedMessage);
-    }
-    
-    public async Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, string invitedByUserId)
-    {
-        try
-        {
-            // Check if user already exists
-            var existingUser = await GetUserByEmail(request.Email);
-            if (existingUser != null)
-            {
-                return new InvitationResponse
-                {
-                    Success = false,
-                    Message = "User with this email already exists"
-                };
-            }
-            
-            // Check if there's already a pending invitation for this email/tenant
-            var existingInvitation = await _context.UserInvitations
-                .FirstOrDefaultAsync(ui => ui.Email == request.Email 
-                                    && ui.TenantId == request.TenantId 
-                                    && !ui.IsUsed 
-                                    && ui.ExpiresAt > DateTime.UtcNow);
-            
-            if (existingInvitation != null)
-            {
-                return new InvitationResponse
-                {
-                    Success = false,
-                    Message = "Pending invitation already exists for this user"
-                };
-            }
-            
-            // Generate secure invitation token
-            var invitationToken = GenerateSecureToken();
-            
-            // Serialize roles to JSON if provided
-            string? rolesJson = null;
-            if (request.RoleIds != null && request.RoleIds.Any())
-            {
-                rolesJson = JsonSerializer.Serialize(request.RoleIds);
-            }
-            
-            // Create invitation record
-            var invitation = new UserInvitation
-            {
-                Email = request.Email,
-                TenantId = request.TenantId,
-                InvitationToken = invitationToken,
-                InvitedRoles = rolesJson,
-                ExpiresAt = DateTime.UtcNow.AddDays(7), // 7 day expiration
-                IsUsed = false
-            };
-            
-            _context.UserInvitations.Add(invitation);
-            await _uow.CompleteAsync();
-            
-            // Get branding context for tenant-specific URL
-            var branding = await _brandingService.GetBrandingContextAsync(null, request.TenantId);
-            
-            // Build invitation URL (similar to password reset pattern)
-            var encodedToken = HttpUtility.UrlEncode(invitationToken);
-            var encodedEmail = HttpUtility.UrlEncode(request.Email);
-            var invitationUrl = $"{branding.BaseUrl}/register-invitation?token={encodedToken}&email={encodedEmail}";
-            
-            // Send invitation email
-            await _emailService.SendTenantInvitationEmailAsync(request.Email, invitationUrl, request.Email, branding);
-            
-            _logger.LogInformation("User invitation created for {Email} by {InvitedBy}", request.Email, invitedByUserId);
-            
-            return new InvitationResponse
-            {
-                Success = true,
-                Message = "Invitation sent successfully",
-                InvitationId = invitation.Id
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating invitation for {Email}", request.Email);
-            return new InvitationResponse
-            {
-                Success = false,
-                Message = "Failed to send invitation"
-            };
-        }
-    }
-    
-    public async Task<UserInvitation?> ValidateInvitationTokenAsync(string token)
-    {
-        var invitation = await _context.UserInvitations
-            .FirstOrDefaultAsync(ui => ui.InvitationToken == token 
-                                && !ui.IsUsed 
-                                && ui.ExpiresAt > DateTime.UtcNow);
+        var roleIds = await query.Select(ura => ura.RoleId).ToListAsync();
         
-        return invitation;
-    }
-    
-    public async Task<UserExistenceCheckDto> CheckUserExistenceAsync(string email, Guid tenantId)
-    {
-        // Check if user exists
-        var user = await GetUserByEmail(email);
-        if (user == null)
-        {
-            throw new NotFoundException($"User with email '{email}' not found");
-        }
-        
-        // Get user roles for this tenant (even if user is not in tenant, will return empty roles)
-        var roles = await GetUserRoles(user.Id, tenantId);
-        
-        return new UserExistenceCheckDto
-        {
-            Email = user.Email!,
-            Roles = roles.Select(r => new RoleNoPermissionDto
-            {
-                Id = r.Id,
-                Name = r.Name!,
-            }).ToList()
-        };
-    }
-    
-    public async Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId)
-    {
-        return await _context.UserInvitations
-            .Where(ui => ui.TenantId == tenantId 
-                      && !ui.IsUsed 
-                      && ui.ExpiresAt > DateTime.UtcNow)
-            .OrderByDescending(ui => ui.CreateDate)
+        return await _context.Roles
+            .Where(r => roleIds.Contains(r.Id))
             .ToListAsync();
     }
-    
-    private static string GenerateSecureToken()
+
+    public async Task<IEnumerable<Permission>?> GetUserPermissions(string userId, Guid? tenantId = null, Guid? siteId = null)
     {
-        using var rng = RandomNumberGenerator.Create();
-        var tokenBytes = new byte[32];
-        rng.GetBytes(tokenBytes);
-        return Convert.ToBase64String(tokenBytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
+        // Get all role assignments for user with hierarchical priority
+        var assignments = await _context.UserRoleAssignments
+            .Where(ura => ura.UserId == userId)
+            .Include(ura => ura.Role)
+            .ThenInclude(r => r!.RolePermissions)
+            .ThenInclude(rp => rp.Permission)
+            .ToListAsync();
+
+        // Filter based on context and apply hierarchy (Internal > Tenant > Site)
+        var contextualAssignments = assignments.Where(a => 
+            a.Scope == RoleScope.Internal ||
+            (a.Scope == RoleScope.Tenant && a.TenantId == tenantId) ||
+            (a.Scope == RoleScope.Site && a.SiteId == siteId && a.TenantId == tenantId)
+        ).ToList();
+
+        var allPermissions = contextualAssignments
+            .SelectMany(a => a.Role?.RolePermissions?.Select(rp => rp.Permission) ?? Enumerable.Empty<Permission>())
+            .Where(p => p != null)
+            .Distinct()
+            .ToList();
+
+        return allPermissions!;
     }
-    
 }

@@ -35,5 +35,12 @@ public class MappingProfile : Profile
         
         // User invitation mappings
         CreateMap<UserInvitation, UserInvitationDto>();
+        
+        // New scope-aware mappings
+        CreateMap<Site, SiteDto>().ReverseMap();
+        CreateMap<AuthUser, SiteUserDto>()
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.Email))
+            .ForMember(dest => dest.Roles, opt => opt.Ignore()); // Will be populated separately
     }
 }

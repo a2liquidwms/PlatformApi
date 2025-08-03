@@ -11,20 +11,20 @@ namespace PlatformApiTests.Controllers
 {
     public class UserControllerTenantUserMgtTests
     {
-        private readonly Mock<IUserService> _mockUserService;
+        private readonly Mock<IOldUserService> _mockUserService;
         private readonly Mock<IMapper> _mockMapper;
-        private readonly Mock<ILogger<UserController>> _mockLogger;
+        private readonly Mock<ILogger<OldUserController>> _mockLogger;
         private readonly Mock<IHttpContextAccessor> _mockHttpContextAccessor;
         private readonly Mock<ILogger<TenantHelper>> _mockTenantHelperLogger;
         private readonly TenantHelper _tenantHelper;
-        private readonly UserController _controller;
+        private readonly OldUserController _controller;
         private readonly Guid _testTenantId = Guid.NewGuid();
 
         public UserControllerTenantUserMgtTests()
         {
-            _mockUserService = new Mock<IUserService>();
+            _mockUserService = new Mock<IOldUserService>();
             _mockMapper = new Mock<IMapper>();
-            _mockLogger = new Mock<ILogger<UserController>>();
+            _mockLogger = new Mock<ILogger<OldUserController>>();
             _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
             _mockTenantHelperLogger = new Mock<ILogger<TenantHelper>>();
 
@@ -36,7 +36,7 @@ namespace PlatformApiTests.Controllers
             // Create concrete TenantHelper instance
             _tenantHelper = new TenantHelper(_mockHttpContextAccessor.Object, _mockTenantHelperLogger.Object);
 
-            _controller = new UserController(
+            _controller = new OldUserController(
                 _mockLogger.Object,
                 _mockMapper.Object,
                 _mockUserService.Object,

@@ -30,7 +30,7 @@ public class AuthService : IAuthService
     private readonly IUnitOfWork<PlatformDbContext> _uow;
     private readonly IHttpContextAccessor _httpContext;
     private readonly TenantHelper _tenantHelper;
-    private readonly IUserService _userService;
+    private readonly IOldUserService _oldUserService;
     private readonly IEmailService _emailService;
     private readonly IBrandingService _brandingService;
     private readonly ISnsService _snsService;
@@ -40,7 +40,7 @@ public class AuthService : IAuthService
     public AuthService(UserManager<AuthUser> userManager, SignInManager<AuthUser> signInManager,
         IConfiguration configuration, ILogger<AuthService> logger, PlatformDbContext context,
         IUnitOfWork<PlatformDbContext> uow, IHttpContextAccessor httpContext, TenantHelper tenantHelper, 
-        IUserService userService, IEmailService emailService, IBrandingService brandingService, ISnsService snsService)
+        IOldUserService oldUserService, IEmailService emailService, IBrandingService brandingService, ISnsService snsService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -50,7 +50,7 @@ public class AuthService : IAuthService
         _uow = uow;
         _httpContext = httpContext;
         _tenantHelper = tenantHelper;
-        _userService = userService;
+        _oldUserService = oldUserService;
         _emailService = emailService;
         _brandingService = brandingService;
         _snsService = snsService;
@@ -107,13 +107,13 @@ public class AuthService : IAuthService
     private async Task<bool> FetchAndSetTenant(AuthUser user, Guid tenantId)
     {
         //check for access
-        var userTenants = await _userService.GetUserTenants(user.Id);
+        var userTenants = await _oldUserService.GetUserTenants(user.Id);
 
         //if not part of tenant
         if (!userTenants.Any(t => t?.Id != null && t?.Id == tenantId))
         {
             //add to tenant as Guest
-            var addUserResult = await _userService.AddUserToRole(user.Id, tenantId, AuthApiConstants.GUEST_ROLE);
+            var addUserResult = await _oldUserService.AddUserToRole(user.Id, tenantId, AuthApiConstants.GUEST_ROLE);
             if (!addUserResult)
             {
                 throw new InvalidDataException("Could not add user to Guest role");
@@ -435,14 +435,14 @@ public class AuthService : IAuthService
         var roleClaims = new List<Claim>();
         var adminRoles = new List<AuthRole>();
 
-        var roles = await _userService.GetUserRoles(user.Id, tenant);
+        var roles = await _oldUserService.GetUserRoles(user.Id, tenant);
         // ReSharper disable once PossibleMultipleEnumeration
         var userRoleClaim = CreateClaimArray(roles.ToList(), CommonConstants.RolesClaim);
         roleClaims.Add(userRoleClaim);
         // ReSharper disable once PossibleMultipleEnumeration
         foreach (var r in roles)
         {
-            if (r.IsAdmin)
+            if (r.IsSystemRole)
             {
                 adminRoles.Add(r);
             }
@@ -472,7 +472,7 @@ public class AuthService : IAuthService
     private async Task<List<Claim>> GetTenantClaims(AuthUser user, Guid? tenant)
     {
         var tenantClaims = new List<Claim>();
-        var tenants = await _userService.GetUserTenants(user.Id) ?? new List<Tenant>();
+        var tenants = await _oldUserService.GetUserTenants(user.Id) ?? new List<Tenant>();
 
         // Convert each tenant to an object with just the properties you need
         var tenantArray = tenants.Select(t => new TenantInfo { Id = t!.Id, Name = t.Name }).ToArray();
@@ -539,7 +539,7 @@ public class AuthService : IAuthService
         try
         {
             // Validate invitation token
-            var invitation = await _userService.ValidateInvitationTokenAsync(request.InvitationToken);
+            var invitation = await _oldUserService.ValidateInvitationTokenAsync(request.InvitationToken);
             if (invitation == null)
             {
                 return IdentityResult.Failed(new IdentityError
@@ -582,7 +582,7 @@ public class AuthService : IAuthService
             }
             
             // Add user to tenant
-            await _userService.AddUserToTenant(user.Id, invitation.TenantId);
+            await _oldUserService.AddUserToTenant(user.Id, invitation.TenantId);
             
             // Assign roles if specified in invitation
             if (!string.IsNullOrEmpty(invitation.InvitedRoles))
@@ -594,7 +594,7 @@ public class AuthService : IAuthService
                     {
                         foreach (var roleId in roleIds)
                         {
-                            await _userService.AddUserToRole(user.Id, invitation.TenantId, roleId);
+                            await _oldUserService.AddUserToRole(user.Id, invitation.TenantId, roleId);
                         }
                     }
                 }

@@ -26,7 +26,7 @@ public class AuthServiceTests
     private readonly Mock<IConfiguration> _mockConfiguration;
     private readonly Mock<ILogger<AuthService>> _mockLogger;
     private readonly Mock<IHttpContextAccessor> _mockHttpContextAccessor;
-    private readonly Mock<IUserService> _mockUserService;
+    private readonly Mock<IOldUserService> _mockUserService;
     private readonly Mock<IEmailService> _mockEmailService;
     private readonly Mock<IBrandingService> _mockBrandingService;
     private readonly Mock<IUnitOfWork<PlatformDbContext>> _mockUnitOfWork;
@@ -92,7 +92,7 @@ public class AuthServiceTests
         _mockLogger = new Mock<ILogger<AuthService>>();
 
         // Mock UserService
-        _mockUserService = new Mock<IUserService>();
+        _mockUserService = new Mock<IOldUserService>();
 
         // Mock EmailService
         _mockEmailService = new Mock<IEmailService>();

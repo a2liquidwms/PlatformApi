@@ -2,47 +2,30 @@ using System.ComponentModel.DataAnnotations;
 
 namespace PlatformApi.Models.DTOs;
 
-public class TenantUserDto
+public class SiteUserDto
 {
+    public required string UserId { get; set; }
     public required string Email { get; set; }
     public List<RoleDto>? Roles { get; set; }
 }
 
-public class TenantUserWithRolesDto
+public class SiteUserWithRolesDto
 {
     public required string UserId { get; set; }
     public required string Email { get; set; }
+    public required Guid SiteId { get; set; }
     public required List<RoleNoPermissionDto> Roles { get; set; } = new();
 }
 
-public class AddUserToRoleRequest
+public class AddUserToSiteDto
 {
     [Required]
     [EmailAddress]
     public required string Email { get; set; }
     
     [Required]
-    public required string RoleId { get; set; }
-}
-
-public class RemoveUserFromRoleDto
-{
-    [Required]
-    [EmailAddress]
-    public required string Email { get; set; }
-    
-    public Guid? TenantId { get; set; }
-    
-    public Guid? SiteId { get; set; }
+    public required Guid SiteId { get; set; }
     
     [Required]
     public required string RoleId { get; set; }
-    
-    public RoleScope Scope { get; set; }
-}
-
-public class UserEmailDto
-{
-    public required string Id { get; set; }
-    public required string Email { get; set; }
 }

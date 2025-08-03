@@ -24,7 +24,7 @@ builder.Configuration.AddEnvironmentVariables();
 var connectionString = builder.Configuration["DBCONNECTION_AUTH"];
 builder.Services.AddDbContext<PlatformDbContext>(options =>
     {
-        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+        options.UseNpgsql(connectionString);
         options.UseSnakeCaseNamingConvention();
     }
 );
@@ -86,6 +86,7 @@ builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IBrandingService, BrandingService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IOldUserService, LegacyUserService>();
 builder.Services.AddScoped<IEmailService, EmailAwsSesService>();
 builder.Services.AddScoped<ISnsService, SnsService>();
 
