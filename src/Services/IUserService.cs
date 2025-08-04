@@ -18,11 +18,11 @@ public interface IUserService
     Task<bool> RemoveUserFromRole(RemoveUserFromRoleDto dto);
     
     // Internal role management (system-wide)
-    Task<bool> AddInternalRole(string email, string roleId);
-    Task<bool> RemoveInternalRole(string email, string roleId);
+    Task<bool> AddInternalRole(string email, Guid roleId);
+    Task<bool> RemoveInternalRole(string email, Guid roleId);
     
     // User lookup helpers
     Task<AuthUser?> GetUserByEmail(string email);
-    Task<IEnumerable<AuthRole>> GetUserRoles(string userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null);
-    Task<IEnumerable<Permission>?> GetUserPermissions(string userId, Guid? tenantId = null, Guid? siteId = null);
+    Task<IEnumerable<Role>> GetUserRoles(Guid userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null);
+    Task<IEnumerable<Permission>?> GetUserPermissions(Guid userId, Guid? tenantId = null, Guid? siteId = null);
 }

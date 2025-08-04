@@ -17,14 +17,14 @@ public class BaseObject : IBaseObject
     [Column("create_date")]
     public DateTime CreateDate { get; set; }
 
-    [StringLength(50)]
+    [StringLength(100)]
     [Column("create_by")]
     public string? CreatedBy { get; set; }
 
     [Column("last_mod_date")]
     public DateTime? LastModifiedDate { get; set; }
 
-    [MaxLength(50)]
+    [MaxLength(100)]
     [Column("last_mod_by")]
     public string? LastModifiedBy { get; set; }
 

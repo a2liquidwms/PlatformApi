@@ -12,8 +12,7 @@ namespace PlatformApi.Models;
 public class UserSite : BaseObject
 {
     [Required]
-    [StringLength(36)]
-    public required string UserId { get; set; }
+    public required Guid UserId { get; set; }
     
     [Required]
     public required Guid SiteId { get; set; }

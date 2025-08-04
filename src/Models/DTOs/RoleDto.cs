@@ -14,8 +14,6 @@ public class RoleDto
     
     public RoleScope Scope { get; set; }
     
-    public int HierarchyLevel { get; set; }
-    
     public Guid? TenantId { get; set; }
     
     public Guid? SiteId { get; set; }

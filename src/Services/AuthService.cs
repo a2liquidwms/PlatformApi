@@ -71,7 +71,7 @@ public class AuthService : IAuthService
             // Publish user-created message
             var userCreatedMessage = new UserCreatedMessage
             {
-                UserId = user.Id,
+                UserId = user.Id.ToString(),
                 Email = user.Email!
             };
             await _snsService.PublishUserCreatedAsync(userCreatedMessage);
@@ -107,13 +107,13 @@ public class AuthService : IAuthService
     private async Task<bool> FetchAndSetTenant(AuthUser user, Guid tenantId)
     {
         //check for access
-        var userTenants = await _oldUserService.GetUserTenants(user.Id);
+        var userTenants = await _oldUserService.GetUserTenants(user.Id.ToString());
 
         //if not part of tenant
         if (!userTenants.Any(t => t?.Id != null && t?.Id == tenantId))
         {
             //add to tenant as Guest
-            var addUserResult = await _oldUserService.AddUserToRole(user.Id, tenantId, AuthApiConstants.GUEST_ROLE);
+            var addUserResult = await _oldUserService.AddUserToRole(user.Id.ToString(), tenantId, Guid.Parse(AuthApiConstants.SUPERADMIN_ROLE));
             if (!addUserResult)
             {
                 throw new InvalidDataException("Could not add user to Guest role");
@@ -173,7 +173,7 @@ public class AuthService : IAuthService
             // Publish user-created message for external login users
             var userCreatedMessage = new UserCreatedMessage
             {
-                UserId = user.Id,
+                UserId = user.Id.ToString(),
                 Email = user.Email!
             };
             await _snsService.PublishUserCreatedAsync(userCreatedMessage);
@@ -220,14 +220,14 @@ public class AuthService : IAuthService
     public async Task<AuthTokenBundle> RefreshToken(string userId, string refreshToken)
     {
         var user = await _userManager.FindByIdAsync(userId);
-        if (user == null || user.Id != userId)
+        if (user == null || user.Id.ToString() != userId)
         {
             _logger.LogError("User Not Match Refresh Token");
             throw new UnauthorizedAccessException();
         }
         
         var oldRefreshToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == refreshToken.Trim() && rt.UserId == userId);
+            .FirstOrDefaultAsync(rt => rt.Token == refreshToken.Trim() && rt.UserId == Guid.Parse(userId));
         
         if (oldRefreshToken == null || oldRefreshToken.IsRevoked || oldRefreshToken.Expires < DateTime.UtcNow)
         {
@@ -236,7 +236,7 @@ public class AuthService : IAuthService
         }
         
         //revoke all other refresh tokens
-        var otherRefreshToken = _context.RefreshTokens.Where(rt => rt.UserId == userId && !rt.IsRevoked);
+        var otherRefreshToken = _context.RefreshTokens.Where(rt => rt.UserId == Guid.Parse(userId) && !rt.IsRevoked);
 
         foreach (var token in otherRefreshToken)
         {
@@ -271,7 +271,7 @@ public class AuthService : IAuthService
 
         var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
         var encodedToken = HttpUtility.UrlEncode(token);
-        var encodedUserId = HttpUtility.UrlEncode(user.Id);
+        var encodedUserId = HttpUtility.UrlEncode(user.Id.ToString());
         
         // Use the branding context to build the confirmation URL
         var confirmationUrl = $"{branding.BaseUrl}/confirm-email?token={encodedToken}&userId={encodedUserId}";
@@ -322,7 +322,7 @@ public class AuthService : IAuthService
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
         var encodedToken = HttpUtility.UrlEncode(token);
-        var encodedUserId = HttpUtility.UrlEncode(user.Id);
+        var encodedUserId = HttpUtility.UrlEncode(user.Id.ToString());
         
         // Use the branding context to build the reset URL
         var resetUrl = $"{branding.BaseUrl}/reset-password?token={encodedToken}&userId={encodedUserId}";
@@ -404,10 +404,10 @@ public class AuthService : IAuthService
         var allClaims = new List<Claim>();
         var defaultClaims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, user.Id),
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email!),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new(CommonConstants.ClaimUserId, user.Id)
+            new(CommonConstants.ClaimUserId, user.Id.ToString())
         };
         allClaims.AddRange(defaultClaims);
 
@@ -433,9 +433,9 @@ public class AuthService : IAuthService
     private async Task<List<Claim>> GetRoleClaims(AuthUser user, Guid? tenant)
     {
         var roleClaims = new List<Claim>();
-        var adminRoles = new List<AuthRole>();
+        var adminRoles = new List<Role>();
 
-        var roles = await _oldUserService.GetUserRoles(user.Id, tenant);
+        var roles = await _oldUserService.GetUserRoles(user.Id.ToString(), tenant);
         // ReSharper disable once PossibleMultipleEnumeration
         var userRoleClaim = CreateClaimArray(roles.ToList(), CommonConstants.RolesClaim);
         roleClaims.Add(userRoleClaim);
@@ -457,7 +457,7 @@ public class AuthService : IAuthService
         return roleClaims;
     }
 
-    private Claim CreateClaimArray(List<AuthRole> roles, string claimKey)
+    private Claim CreateClaimArray(List<Role> roles, string claimKey)
     {
         // Extract role names and store them in a string array
         var roleNames = roles.Select(r => r.Name).ToArray();
@@ -472,7 +472,7 @@ public class AuthService : IAuthService
     private async Task<List<Claim>> GetTenantClaims(AuthUser user, Guid? tenant)
     {
         var tenantClaims = new List<Claim>();
-        var tenants = await _oldUserService.GetUserTenants(user.Id) ?? new List<Tenant>();
+        var tenants = await _oldUserService.GetUserTenants(user.Id.ToString()) ?? new List<Tenant>();
 
         // Convert each tenant to an object with just the properties you need
         var tenantArray = tenants.Select(t => new TenantInfo { Id = t!.Id, Name = t.Name }).ToArray();
@@ -582,19 +582,19 @@ public class AuthService : IAuthService
             }
             
             // Add user to tenant
-            await _oldUserService.AddUserToTenant(user.Id, invitation.TenantId);
+            await _oldUserService.AddUserToTenant(user.Id.ToString(), invitation.TenantId);
             
             // Assign roles if specified in invitation
             if (!string.IsNullOrEmpty(invitation.InvitedRoles))
             {
                 try
                 {
-                    var roleIds = JsonSerializer.Deserialize<List<string>>(invitation.InvitedRoles);
+                    var roleIds = JsonSerializer.Deserialize<List<Guid>>(invitation.InvitedRoles);
                     if (roleIds != null)
                     {
                         foreach (var roleId in roleIds)
                         {
-                            await _oldUserService.AddUserToRole(user.Id, invitation.TenantId, roleId);
+                            await _oldUserService.AddUserToRole(user.Id.ToString(), invitation.TenantId, roleId);
                         }
                     }
                 }
@@ -612,7 +612,7 @@ public class AuthService : IAuthService
             // Publish user created message
             var userCreatedMessage = new UserCreatedMessage
             {
-                UserId = user.Id,
+                UserId = user.Id.ToString(),
                 Email = user.Email!,
                 CreatedAt = DateTime.UtcNow
             };

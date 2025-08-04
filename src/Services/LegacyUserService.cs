@@ -17,13 +17,13 @@ public class LegacyUserService : IOldUserService
         _context = context;
     }
 
-    public async Task<IEnumerable<AuthRole>> GetUserRoles(string userId, Guid? tenantId)
+    public async Task<IEnumerable<Role>> GetUserRoles(string userId, Guid? tenantId)
     {
         // Return empty list for now - will be handled by new permission system
-        return new List<AuthRole>();
+        return new List<Role>();
     }
 
-    public async Task<bool> AddUserToRole(string userId, Guid tenantId, string roleId)
+    public async Task<bool> AddUserToRole(string userId, Guid tenantId, Guid roleId)
     {
         // TODO: Implement when role management is moved to dedicated service
         return true;
@@ -32,7 +32,7 @@ public class LegacyUserService : IOldUserService
     public async Task<IEnumerable<Tenant?>> GetUserTenants(string userId)
     {
         return await _context.UserTenants
-            .Where(ut => ut.UserId == userId)
+            .Where(ut => ut.UserId == Guid.Parse(userId))
             .Include(ut => ut.Tenant)
             .Select(ut => ut.Tenant)
             .ToListAsync();
@@ -41,13 +41,13 @@ public class LegacyUserService : IOldUserService
     public async Task<bool> AddUserToTenant(string userId, Guid tenantId)
     {
         var existingUserTenant = await _context.UserTenants
-            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TenantId == tenantId);
+            .FirstOrDefaultAsync(ut => ut.UserId == Guid.Parse(userId) && ut.TenantId == tenantId);
 
         if (existingUserTenant != null) return true;
 
         var userTenant = new UserTenant
         {
-            UserId = userId,
+            UserId = Guid.Parse(userId),
             TenantId = tenantId
         };
 
@@ -71,7 +71,7 @@ public class LegacyUserService : IOldUserService
     public Task<IEnumerable<Permission>?> GetUserPermissions(string userId, Guid? tenantId)
         => throw new NotImplementedException("Use new permission system");
 
-    public Task<bool> AddUserToAdminRole(string userId, string roleId)
+    public Task<bool> AddUserToAdminRole(string userId, Guid roleId)
         => throw new NotImplementedException("Use new role system");
 
     public Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsersWithNonGuestRoles(Guid tenantId)
@@ -80,13 +80,13 @@ public class LegacyUserService : IOldUserService
     public Task<IEnumerable<AuthUser>> GetTenantUsersByRoleName(Guid tenantId, string roleName)
         => throw new NotImplementedException("Use new role system");
 
-    public Task<bool> RemoveUserFromRole(string userId, Guid tenantId, string roleId)
+    public Task<bool> RemoveUserFromRole(string userId, Guid tenantId, Guid roleId)
         => throw new NotImplementedException("Use new role system");
 
     public Task<AuthUser?> GetUserByEmail(string email)
         => throw new NotImplementedException("Use UserService");
 
-    public Task<IEnumerable<AuthRole>> GetUserRolesExcludingGuest(string userId, Guid? tenantId)
+    public Task<IEnumerable<Role>> GetUserRolesExcludingGuest(string userId, Guid? tenantId)
         => throw new NotImplementedException("Use new role system");
 
     public bool InvalidateUserPermissions(string userId, Guid? tenantId = null)

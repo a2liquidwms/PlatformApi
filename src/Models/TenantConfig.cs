@@ -6,7 +6,7 @@ namespace PlatformApi.Models;
 [Table("tenant_configs")]
 public class TenantConfig
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     public required Guid TenantId { get; set; }
 
@@ -19,9 +19,5 @@ public class TenantConfig
 
     [StringLength(15)]
     public string? PrimaryColor { get; set; }
-    
-    public decimal? GeocenterLat { get; set; }
-    
-    public decimal? GeocenterLong { get; set; }
     
 }

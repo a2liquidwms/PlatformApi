@@ -169,8 +169,6 @@ public class TenantController : ControllerBase
                 LogoPath = obj.LogoPath,
                 PrimaryColor = obj.PrimaryColor,
                 SiteName = obj.SiteName,
-                GeocenterLat = obj.GeocenterLat,
-                GeocenterLong = obj.GeocenterLong
             };
             
             var result = await _tenantService.UpdateTenantConfig(id, tenantConfig);

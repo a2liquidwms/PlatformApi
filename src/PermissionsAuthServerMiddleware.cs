@@ -128,7 +128,7 @@ public class PermissionsAuthServerMiddleware
                 {
                     var commonRole = new CommonRolesPermission
                     {
-                        Id = authRole.Id,
+                        Id = authRole.Id.ToString(),
                         Name = authRole.Name,
                         Permissions = authRole.RolePermissions?.Select(rp => new CommonPermission
                         {

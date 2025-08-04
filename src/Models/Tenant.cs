@@ -11,13 +11,12 @@ namespace PlatformApi.Models;
 [Index(nameof(SubDomain), IsUnique = true)]
 public class Tenant : BaseObject
 {
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
     
-    [StringLength(10)]
+    [StringLength(25)]
     public required string Code { get; set; }
     
-    [StringLength(30)]
+    [StringLength(50)]
     public required string Name { get; set; }
     
     [StringLength(50)] 

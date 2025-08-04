@@ -12,7 +12,7 @@ public class ForgotPasswordRequest
 public class ResetPasswordRequest
 {
     [Required]
-    public required string UserId { get; set; }
+    public required Guid UserId { get; set; }
 
     [Required]
     public required string Token { get; set; }
@@ -25,7 +25,7 @@ public class ResetPasswordRequest
 public class ConfirmEmailRequest
 {
     [Required]
-    public required string UserId { get; set; }
+    public required Guid UserId { get; set; }
 
     [Required]
     public required string Token { get; set; }

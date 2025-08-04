@@ -7,8 +7,5 @@ public class TenantConfigCreateDto
     public string? LogoPath { get; set; }
     
     public string? PrimaryColor { get; set; }
-
-    public decimal? GeocenterLat { get; set; }
-
-    public decimal? GeocenterLong { get; set; }
+    
 }

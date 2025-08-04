@@ -10,8 +10,7 @@ namespace PlatformApi.Models;
 [Index(nameof(UserId), Name = "IX_user_tenant_user_id")]
 public class UserTenant : BaseObject
 {
-    [StringLength(36)]
-    public required string UserId { get; set; }
+    public required Guid UserId { get; set; }
     public virtual AuthUser? User { get; set; }
 
     public required Guid TenantId { get; set; }

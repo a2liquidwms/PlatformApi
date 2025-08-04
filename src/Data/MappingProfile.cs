@@ -11,15 +11,15 @@ public class MappingProfile : Profile
         CreateMap<Tenant, TenantDto>().ReverseMap();
         CreateMap<TenantConfig, TenantConfigDto>().ReverseMap();
         
-        CreateMap<AuthRole, RoleDto>()
+        CreateMap<Role, RoleDto>()
             .ForMember(dest => dest.Permissions, 
                 opt => opt.Condition(src => src.RolePermissions != null))
             .ForMember(dest => dest.Permissions, 
                 opt => opt.MapFrom(src => src.RolePermissions!.Select(rp => rp.Permission)));
         
-        CreateMap<RoleDto, AuthRole>();
-        CreateMap<RoleCreateDto, AuthRole>();
-        CreateMap<AuthRole, RoleNoPermissionDto>();
+        CreateMap<RoleDto, Role>();
+        CreateMap<RoleCreateDto, Role>();
+        CreateMap<Role, RoleNoPermissionDto>();
         CreateMap<Permission, PermissionDto>().ReverseMap();
         CreateMap<PermissionCreateDto, Permission>();
         

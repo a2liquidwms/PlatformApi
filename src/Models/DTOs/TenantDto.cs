@@ -7,7 +7,7 @@ public class TenantDto : BaseObjectDto
 {
     public Guid? Id { get; set; }
 
-    [StringLength(10)]
+    [StringLength(25)]
     public required string Code { get; set; }
     
     [StringLength(50)]

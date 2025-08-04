@@ -9,7 +9,7 @@ namespace PlatformApi.Models;
 public class Permission : BaseObject
 {
     [Key]
-    [StringLength(36)]
+    [StringLength(50)]
     public required string Code { get; set; }
 
     [StringLength(50)]

@@ -10,7 +10,7 @@ public class TenantUserDto
 
 public class TenantUserWithRolesDto
 {
-    public required string UserId { get; set; }
+    public required Guid UserId { get; set; }
     public required string Email { get; set; }
     public required List<RoleNoPermissionDto> Roles { get; set; } = new();
 }
@@ -22,7 +22,7 @@ public class AddUserToRoleRequest
     public required string Email { get; set; }
     
     [Required]
-    public required string RoleId { get; set; }
+    public required Guid RoleId { get; set; }
 }
 
 public class RemoveUserFromRoleDto
@@ -36,7 +36,7 @@ public class RemoveUserFromRoleDto
     public Guid? SiteId { get; set; }
     
     [Required]
-    public required string RoleId { get; set; }
+    public required Guid RoleId { get; set; }
     
     public RoleScope Scope { get; set; }
 }

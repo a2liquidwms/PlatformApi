@@ -109,3 +109,8 @@ The project includes a `TempStarter` directory containing common utilities and m
 - Base models and constants
 
 When working with this codebase, be aware of the multi-tenant nature - most operations should consider tenant context, and user permissions are scoped to specific tenants.
+
+## Claude Code Guidelines
+
+### Migration and Database Changes
+- If a migration is needed as part of change, I will run manually.  At end of prompt, just add "Migration is Needed", if there are db changes.  

@@ -5,20 +5,20 @@ namespace PlatformApi.Services;
 
 public interface IOldUserService
 {
-    Task<IEnumerable<AuthRole>> GetUserRoles(string userId, Guid? tenantId);
-    Task<bool> AddUserToRole(string userId, Guid tenantId, string roleId);
+    Task<IEnumerable<Role>> GetUserRoles(string userId, Guid? tenantId);
+    Task<bool> AddUserToRole(string userId, Guid tenantId, Guid roleId);
     Task<bool> DoesUserHavePermission(string userId, string checkPermission, Guid? tenantId);
     Task<IEnumerable<Permission>?> GetUserPermissions(string userId, Guid? tenantId);
     Task<IEnumerable<Tenant?>> GetUserTenants(string userId);
     Task<bool> AddUserToTenant(string userId, Guid tenantId);
-    Task<bool> AddUserToAdminRole(string userId, string roleId);
+    Task<bool> AddUserToAdminRole(string userId, Guid roleId);
     
     // New methods for tenant user management
     Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsersWithNonGuestRoles(Guid tenantId);
     Task<IEnumerable<AuthUser>> GetTenantUsersByRoleName(Guid tenantId, string roleName);
-    Task<bool> RemoveUserFromRole(string userId, Guid tenantId, string roleId);
+    Task<bool> RemoveUserFromRole(string userId, Guid tenantId, Guid roleId);
     Task<AuthUser?> GetUserByEmail(string email);
-    Task<IEnumerable<AuthRole>> GetUserRolesExcludingGuest(string userId, Guid? tenantId);
+    Task<IEnumerable<Role>> GetUserRolesExcludingGuest(string userId, Guid? tenantId);
     bool InvalidateUserPermissions(string userId, Guid? tenantId = null);
     Task PublishUserModifiedAsync(string userId, string email);
     

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using PlatformApi.Data;
 using PlatformApi.Models;
 
@@ -8,7 +9,7 @@ public static class AuthServerExtensions
 {
     public static void ConfigureIdentity(this IServiceCollection services)
     {
-        services.AddIdentity<AuthUser, AuthRole>(options =>
+        services.AddIdentity<AuthUser, IdentityRole<Guid>>(options =>
         {
             // Password settings
             options.Password.RequiredLength = 6;

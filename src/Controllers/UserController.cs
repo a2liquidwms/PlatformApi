@@ -157,7 +157,7 @@ public class UserController : ControllerBase
     {
         try
         {
-            var result = await _userService.AddInternalRole(dto.Email, dto.RoleId);
+            var result = await _userService.AddInternalRole(dto.Email, Guid.Parse(dto.RoleId));
             if (!result)
             {
                 return BadRequest("Failed to add internal role. User may not exist or role is not an internal role.");
@@ -179,7 +179,7 @@ public class UserController : ControllerBase
     {
         try
         {
-            var result = await _userService.RemoveInternalRole(dto.Email, dto.RoleId);
+            var result = await _userService.RemoveInternalRole(dto.Email, Guid.Parse(dto.RoleId));
             if (!result)
             {
                 return BadRequest("Failed to remove internal role. Assignment may not exist.");

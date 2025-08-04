@@ -8,8 +8,7 @@ namespace PlatformApi.Models;
 public class UserInvitation : BaseObject
 {
     [Key]
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
     
     [Required]
     [StringLength(255)]

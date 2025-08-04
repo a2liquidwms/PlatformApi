@@ -60,7 +60,7 @@ public class PermissionController : ControllerBase
     [HttpPost ("roles")]
     public async Task<ActionResult<RoleDto>> AddRole(RoleCreateDto objCreateDto)
     {
-        var obj = _mapper.Map<AuthRole>(objCreateDto);
+        var obj = _mapper.Map<Role>(objCreateDto);
         var result = await _permissionService.AddRole(obj);
         
         return CreatedAtAction(nameof(GetRoleById), new { id = result.Id }, result);
@@ -74,7 +74,7 @@ public class PermissionController : ControllerBase
     {
         try
         {
-            var obj = _mapper.Map<AuthRole>(objDto);
+            var obj = _mapper.Map<Role>(objDto);
             
             var result = await _permissionService.UpdateRole(id, obj);
     

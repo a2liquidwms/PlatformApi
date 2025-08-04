@@ -7,10 +7,9 @@ namespace PlatformApi.Models;
 [Table("user_refresh_tokens")]
 public class RefreshToken : BaseObject
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
     public required string Token { get; set; }
-    [StringLength(36)]
-    public required string UserId { get; set; }
+    public required Guid UserId { get; set; }
     
     [ForeignKey(nameof(UserId))]
     public virtual AuthUser? User { get; set; }
@@ -24,6 +23,6 @@ public class RefreshToken : BaseObject
 
 public class RefreshRequest
 {
-    public required string UserId { get; set; }
+    public required Guid UserId { get; set; }
     public required string RefreshToken { get; set; }
 }

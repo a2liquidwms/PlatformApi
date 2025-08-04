@@ -95,7 +95,7 @@ public class PermissionService : IPermissionService
     }
     
     //roles
-    private IQueryable<AuthRole> CreateRoleQuery(bool includePermissions)
+    private IQueryable<Role> CreateRoleQuery(bool includePermissions)
     {
         var query = _context.Roles.AsNoTracking();
         if (includePermissions)
@@ -104,34 +104,34 @@ public class PermissionService : IPermissionService
         }
         return query;
     }
-    public async Task<IEnumerable<AuthRole>> GetAllRoles(bool includePermissions = false)
+    public async Task<IEnumerable<Role>> GetAllRoles(bool includePermissions = false)
     {
         var query = CreateRoleQuery(includePermissions);
         return await query.ToListAsync();
     }
 
-    public async Task<AuthRole?> GetRoleById(string id, bool includePermissions = false)
+    public async Task<Role?> GetRoleById(string id, bool includePermissions = false)
     {
-        var query = CreateRoleQuery(includePermissions).FirstOrDefaultAsync(r => r.Id == id);
+        var query = CreateRoleQuery(includePermissions).FirstOrDefaultAsync(r => r.Id == Guid.Parse(id));
         return await query;
     }
     
-    public async Task<AuthRole?> GetRoleByName(string name, bool includePermissions = false)
+    public async Task<Role?> GetRoleByName(string name, bool includePermissions = false)
     {
         var query = CreateRoleQuery(includePermissions).FirstOrDefaultAsync(r => r.Name == name);
         return await query;
     }
 
-    public async Task<AuthRole> AddRole(AuthRole obj)
+    public async Task<Role> AddRole(Role obj)
     {
         _context.Roles.Add(obj);
         await _uow.CompleteAsync();
         return obj;
     }
 
-    public async Task<bool> UpdateRole(string id, AuthRole obj)
+    public async Task<bool> UpdateRole(string id, Role obj)
     {
-        if (id != obj.Id)
+        if (Guid.Parse(id) != obj.Id)
         {
             _logger.LogInformation("Invalid Id: {Id}", id);
             throw new InvalidDataException(ErrorMessages.KeyNotMatch);
@@ -168,7 +168,7 @@ public class PermissionService : IPermissionService
         return true;
     }
 
-    public async Task<AuthRole> AddPermissionsToRole(string roleId, string[] permissionCodes)
+    public async Task<Role> AddPermissionsToRole(string roleId, string[] permissionCodes)
     {
         // Retrieve the role by its ID
         var role = await GetRoleById(roleId, true);
@@ -197,7 +197,7 @@ public class PermissionService : IPermissionService
                 {
                     role.RolePermissions!.Add(new RolePermission
                     {
-                        UserRoleId = roleId,
+                        RoleId = Guid.Parse(roleId),
                         PermissionCode = permission.Code
                     });
                 }
@@ -216,7 +216,7 @@ public class PermissionService : IPermissionService
         return (await GetRoleById(roleId, true))!;
     }
 
-    public async Task<AuthRole> AddPermissionToRole(string roleId, string permissionCode)
+    public async Task<Role> AddPermissionToRole(string roleId, string permissionCode)
     {
         var role = await GetRoleById(roleId, true);
         if (role == null)
@@ -239,7 +239,7 @@ public class PermissionService : IPermissionService
         {
             role.RolePermissions!.Add(new RolePermission
             {
-                UserRoleId = roleId,
+                RoleId = Guid.Parse(roleId),
                 PermissionCode = permissionCode
             });
 
@@ -255,7 +255,7 @@ public class PermissionService : IPermissionService
         }
     }
 
-    public async Task<AuthRole> RemovePermissionFromRole(string roleId, string permissionCode)
+    public async Task<Role> RemovePermissionFromRole(string roleId, string permissionCode)
     {
         var role = await GetRoleById(roleId, true);
         if (role == null)

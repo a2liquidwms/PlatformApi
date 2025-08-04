@@ -11,8 +11,7 @@ namespace PlatformApi.Models;
 [Index(nameof(Code), nameof(TenantId), Name = "IX_site_code_tenant_unique", IsUnique = true)]
 public class Site : BaseObject
 {
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
     
     [Required]
     [StringLength(25)]
