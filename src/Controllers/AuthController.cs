@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using NetStarterCommon.Core.Common.Tenant;
+using PlatformApi.Common.Tenant;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
 using PlatformApi.Services;

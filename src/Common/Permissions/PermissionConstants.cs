@@ -1,4 +1,4 @@
-namespace NetStarterCommon.Core.Common.Permissions;
+namespace PlatformApi.Common.Permissions;
 
 public static class PermissionConstants
 {

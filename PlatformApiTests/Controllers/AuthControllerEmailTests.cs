@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using NetStarterCommon.Core.Common.Tenant;
+using PlatformApi.Common.Constants;
 using PlatformApi.Controllers;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
@@ -418,7 +419,7 @@ public class AuthControllerEmailTests
         var tenantId = Guid.NewGuid();
 
         // Setup HttpContext to have tenant information
-        _controller.HttpContext.Items[NetStarterCommon.Core.Common.Constants.CommonConstants.TenantHttpContext] =
+        _controller.HttpContext.Items[CommonConstants.TenantHttpContext] =
             tenantId;
 
         _mockAuthService.Setup(x => x.Register(
@@ -453,7 +454,7 @@ public class AuthControllerEmailTests
         var tenantId = Guid.NewGuid();
 
         // Setup HttpContext to have tenant information
-        _controller.HttpContext.Items[NetStarterCommon.Core.Common.Constants.CommonConstants.TenantHttpContext] =
+        _controller.HttpContext.Items[CommonConstants.TenantHttpContext] =
             tenantId;
 
         _mockAuthService.Setup(x => x.SendEmailConfirmationAsync(
@@ -486,7 +487,7 @@ public class AuthControllerEmailTests
         var tenantId = Guid.NewGuid();
 
         // Setup HttpContext to have tenant information
-        _controller.HttpContext.Items[NetStarterCommon.Core.Common.Constants.CommonConstants.TenantHttpContext] =
+        _controller.HttpContext.Items[CommonConstants.TenantHttpContext] =
             tenantId;
 
         _mockAuthService.Setup(x => x.SendPasswordResetAsync(

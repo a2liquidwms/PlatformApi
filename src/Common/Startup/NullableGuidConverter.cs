@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace NetStarterCommon.Core.Common.Startup;
+namespace PlatformApi.Common.Startup;
 
 public class NullableGuidConverter : JsonConverter<Guid?>
 {

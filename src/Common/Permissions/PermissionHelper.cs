@@ -1,9 +1,6 @@
-using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using NetStarterCommon.Core.Common.Models;
 
-namespace NetStarterCommon.Core.Common.Permissions;
+namespace PlatformApi.Common.Permissions;
 
 public class PermissionHelper
 {

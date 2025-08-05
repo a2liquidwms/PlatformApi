@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace NetStarterCommon.Core.Common.Startup;
+namespace PlatformApi.Common.Startup;
 
 
 public class InputValidationFilter : IActionFilter

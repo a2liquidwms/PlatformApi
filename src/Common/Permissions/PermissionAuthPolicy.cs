@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 
-namespace NetStarterCommon.Core.Common.Permissions;
+namespace PlatformApi.Common.Permissions;
 
 public class PermissionAuthPolicy : IAuthorizationPolicyProvider
 {

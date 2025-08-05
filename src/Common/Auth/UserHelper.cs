@@ -1,10 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using NetStarterCommon.Core.Common.Constants;
+using PlatformApi.Common.Constants;
 
-namespace NetStarterCommon.Core.Common.Auth;
+namespace PlatformApi.Common.Auth;
 
 public class UserHelper
 {

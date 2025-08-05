@@ -2,9 +2,9 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Memory;
-using NetStarterCommon.Core.Common.Constants;
 using NetStarterCommon.Core.Common.Models;
-using NetStarterCommon.Core.Common.Permissions;
+using PlatformApi.Common.Constants;
+using PlatformApi.Common.Permissions;
 using PlatformApi.Services;
 
 namespace PlatformApi;

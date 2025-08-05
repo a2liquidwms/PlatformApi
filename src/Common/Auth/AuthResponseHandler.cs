@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
-using Microsoft.AspNetCore.Http;
 
-namespace NetStarterCommon.Core.Common.Auth;
+namespace PlatformApi.Common.Auth;
 
 public class AuthResponseHandler : IAuthorizationMiddlewareResultHandler
 {

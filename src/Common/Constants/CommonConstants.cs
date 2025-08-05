@@ -1,4 +1,4 @@
-namespace NetStarterCommon.Core.Common.Constants;
+namespace PlatformApi.Common.Constants;
 
 public static class CommonConstants
 {

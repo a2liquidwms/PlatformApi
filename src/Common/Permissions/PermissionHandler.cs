@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using NetStarterCommon.Core.Common.Models;
 
-namespace NetStarterCommon.Core.Common.Permissions
+namespace PlatformApi.Common.Permissions
 {
     public class PermissionRequirement : IAuthorizationRequirement
     {

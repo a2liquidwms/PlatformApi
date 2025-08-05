@@ -1,7 +1,7 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
-using NetStarterCommon.Core.Common.Constants;
 using NetStarterCommon.Core.Common.Tenant;
+using PlatformApi.Common.Constants;
 using PlatformApi.Controllers;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;

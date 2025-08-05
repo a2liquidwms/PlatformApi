@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 
-namespace NetStarterCommon.Core.Common.Permissions;
+namespace PlatformApi.Common.Permissions;
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, AllowMultiple = true)]
 public class RequirePermissionAttribute : AuthorizeAttribute
 {

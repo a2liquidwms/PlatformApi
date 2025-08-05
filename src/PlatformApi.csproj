@@ -50,4 +50,11 @@
     <None Remove="Properties\launchSettings.json" />
   </ItemGroup>
 
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="TempStarter\NetStarterCommon.Core\obj\Debug\net8.0\NetStarterCommon.Core.sourcelink.json" />
+    <_ContentIncludedByDefault Remove="TempStarter\NetStarterCommon.Core\obj\NetStarterCommon.Core.csproj.nuget.dgspec.json" />
+    <_ContentIncludedByDefault Remove="TempStarter\NetStarterCommon.Core\obj\project.assets.json" />
+    <_ContentIncludedByDefault Remove="TempStarter\NetStarterCommon.Core\obj\project.packagespec.json" />
+  </ItemGroup>
+
 </Project>

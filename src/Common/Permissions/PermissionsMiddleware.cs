@@ -1,12 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
-using NetStarterCommon.Core.Common.Constants;
 using NetStarterCommon.Core.Common.Models;
+using PlatformApi.Common.Constants;
 
-namespace NetStarterCommon.Core.Common.Permissions;
+namespace PlatformApi.Common.Permissions;
 
 public class PermissionsMiddleware
 {

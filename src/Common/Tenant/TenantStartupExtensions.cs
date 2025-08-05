@@ -1,9 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
-namespace NetStarterCommon.Core.Common.Tenant;
+namespace PlatformApi.Common.Tenant;
 
 public static class TenantStartupExtensions
 {

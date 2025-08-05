@@ -1,8 +1,6 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using NetStarterCommon.Core.Common.Constants;
+using PlatformApi.Common.Constants;
 
-namespace NetStarterCommon.Core.Common.Tenant;
+namespace PlatformApi.Common.Tenant;
 
 public class TenantHelper
 {

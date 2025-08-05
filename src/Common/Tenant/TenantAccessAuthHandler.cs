@@ -1,12 +1,10 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using NetStarterCommon.Core.Common.Constants;
 using NetStarterCommon.Core.Common.Models;
+using PlatformApi.Common.Constants;
 
-namespace NetStarterCommon.Core.Common.Tenant;
+namespace PlatformApi.Common.Tenant;
 
 /// <summary>
 /// Authorization requirement that validates authenticated users have access to the current tenant

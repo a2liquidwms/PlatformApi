@@ -1,8 +1,8 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
-using NetStarterCommon.Core.Common.Constants;
-using NetStarterCommon.Core.Common.Permissions;
-using NetStarterCommon.Core.Common.Tenant;
+using PlatformApi.Common.Constants;
+using PlatformApi.Common.Permissions;
+using PlatformApi.Common.Tenant;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
