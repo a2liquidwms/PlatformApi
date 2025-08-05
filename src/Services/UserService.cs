@@ -1,7 +1,7 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using NetStarterCommon.Core.Common.Services;
+using NetStarterCommon.Core.Common.Constants;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
@@ -14,17 +14,20 @@ public class UserService : IUserService
     private readonly UserManager<AuthUser> _userManager;
     private readonly IMapper _mapper;
     private readonly ILogger<UserService> _logger;
+    private readonly IUnitOfWork<PlatformDbContext> _uow;
 
     public UserService(
         PlatformDbContext context,
         UserManager<AuthUser> userManager,
         IMapper mapper,
-        ILogger<UserService> logger)
+        ILogger<UserService> logger,
+        IUnitOfWork<PlatformDbContext> uow)
     {
         _context = context;
         _userManager = userManager;
         _mapper = mapper;
         _logger = logger;
+        _uow = uow;
     }
 
     public async Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsers(Guid tenantId)
@@ -115,7 +118,7 @@ public class UserService : IUserService
             await AddUserToRole(roleDto);
         }
 
-        await _context.SaveChangesAsync();
+        await _uow.CompleteAsync();
         return true;
     }
 
@@ -172,18 +175,19 @@ public class UserService : IUserService
         };
         
         await AddUserToRole(roleDto);
-        await _context.SaveChangesAsync();
+        await _uow.CompleteAsync();
         return true;
     }
 
     public async Task<bool> AddUserToRole(AddUserToRoleDto dto)
     {
         var user = await GetUserByEmail(dto.Email);
-        if (user == null) return false;
+        if (user == null) throw new NotFoundException("User not found");
 
         // Validate role exists and matches scope
         var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == Guid.Parse(dto.RoleId));
-        if (role == null || role.Scope != dto.Scope) return false;
+        if (role == null) throw new NotFoundException("Role not found");
+        if (role.Scope != dto.Scope) throw new InvalidDataException("Role scope mismatch");
 
         // Check if assignment already exists
         var existingAssignment = await _context.UserRoles
@@ -193,7 +197,7 @@ public class UserService : IUserService
                                        ura.SiteId == dto.SiteId &&
                                        ura.Scope == dto.Scope);
 
-        if (existingAssignment != null) return true; // Already assigned
+        if (existingAssignment != null) throw new InvalidDataException("User is already assigned to this role");
 
         var roleAssignment = new UserRoles
         {
@@ -205,7 +209,44 @@ public class UserService : IUserService
         };
 
         await _context.UserRoles.AddAsync(roleAssignment);
-        await _context.SaveChangesAsync();
+        await _uow.CompleteAsync();
+        return true;
+    }
+
+    public async Task<bool> AddUserToRole(AddUserToRoleDto dto, RoleScope expectedScope)
+    {
+        var user = await GetUserByEmail(dto.Email);
+        if (user == null) throw new NotFoundException("User not found");
+
+        // Validate role exists and matches expected scope
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == Guid.Parse(dto.RoleId));
+        if (role == null) throw new NotFoundException("Role not found");
+        if (role.Scope != expectedScope) throw new InvalidDataException($"Role is not a {expectedScope} scope role");
+
+        // Ensure the DTO scope matches expected scope
+        if (dto.Scope != expectedScope) throw new InvalidDataException($"DTO scope must be {expectedScope}");
+
+        // Check if assignment already exists
+        var existingAssignment = await _context.UserRoles
+            .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
+                                       ura.RoleId == Guid.Parse(dto.RoleId) &&
+                                       ura.TenantId == dto.TenantId &&
+                                       ura.SiteId == dto.SiteId &&
+                                       ura.Scope == dto.Scope);
+
+        if (existingAssignment != null) throw new InvalidDataException("User is already assigned to this role");
+
+        var roleAssignment = new UserRoles
+        {
+            UserId = user.Id,
+            RoleId = Guid.Parse(dto.RoleId),
+            TenantId = dto.TenantId,
+            SiteId = dto.SiteId,
+            Scope = dto.Scope
+        };
+
+        await _context.UserRoles.AddAsync(roleAssignment);
+        await _uow.CompleteAsync();
         return true;
     }
 
@@ -224,51 +265,7 @@ public class UserService : IUserService
         if (assignment == null) return false;
 
         _context.UserRoles.Remove(assignment);
-        await _context.SaveChangesAsync();
-        return true;
-    }
-
-    public async Task<bool> AddInternalRole(string email, Guid roleId)
-    {
-        var user = await GetUserByEmail(email);
-        if (user == null) return false;
-
-        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == roleId);
-        if (role == null || role.Scope != RoleScope.Internal) return false;
-
-        var existingAssignment = await _context.UserRoles
-            .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
-                                       ura.RoleId == roleId &&
-                                       ura.Scope == RoleScope.Internal);
-
-        if (existingAssignment != null) return true;
-
-        var roleAssignment = new UserRoles
-        {
-            UserId = user.Id,
-            RoleId = roleId,
-            Scope = RoleScope.Internal
-        };
-
-        await _context.UserRoles.AddAsync(roleAssignment);
-        await _context.SaveChangesAsync();
-        return true;
-    }
-
-    public async Task<bool> RemoveInternalRole(string email, Guid roleId)
-    {
-        var user = await GetUserByEmail(email);
-        if (user == null) return false;
-
-        var assignment = await _context.UserRoles
-            .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
-                                       ura.RoleId == roleId &&
-                                       ura.Scope == RoleScope.Internal);
-
-        if (assignment == null) return false;
-
-        _context.UserRoles.Remove(assignment);
-        await _context.SaveChangesAsync();
+        await _uow.CompleteAsync();
         return true;
     }
 

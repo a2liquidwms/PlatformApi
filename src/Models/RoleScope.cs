@@ -12,5 +12,8 @@ public enum RoleScope
     Tenant = 2,
     
     [Description("Site-specific roles for individual site users")]
-    Site = 4
+    Site = 4,
+    
+    [Description("Default permissions for all authenticated users")]
+    Default = 8
 }

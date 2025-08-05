@@ -15,11 +15,8 @@ public interface IUserService
     
     // Role management (scope-aware)
     Task<bool> AddUserToRole(AddUserToRoleDto dto);
+    Task<bool> AddUserToRole(AddUserToRoleDto dto, RoleScope expectedScope);
     Task<bool> RemoveUserFromRole(RemoveUserFromRoleDto dto);
-    
-    // Internal role management (system-wide)
-    Task<bool> AddInternalRole(string email, Guid roleId);
-    Task<bool> RemoveInternalRole(string email, Guid roleId);
     
     // User lookup helpers
     Task<AuthUser?> GetUserByEmail(string email);

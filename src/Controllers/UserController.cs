@@ -1,7 +1,10 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
+using NetStarterCommon.Core.Common.Constants;
 using NetStarterCommon.Core.Common.Permissions;
 using NetStarterCommon.Core.Common.Tenant;
+using PlatformApi.Data;
+using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
 using PlatformApi.Services;
 
@@ -29,7 +32,7 @@ public class UserController : ControllerBase
     }
 
     // Get all tenant users
-    [RequirePermission("tenant.admin.manage.users")]
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
     [HttpGet("tenant/{tenantId:guid}/users")]
     public async Task<ActionResult<IEnumerable<TenantUserWithRolesDto>>> GetTenantUsers([FromRoute] Guid tenantId)
     {
@@ -46,7 +49,7 @@ public class UserController : ControllerBase
     }
 
     // Get all site users
-    [RequirePermission("tenant.manage.beacon.config")]
+    [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
     [HttpGet("site/{siteId:guid}/users")]
     public async Task<ActionResult<IEnumerable<SiteUserWithRolesDto>>> GetSiteUsers([FromRoute] Guid siteId)
     {
@@ -63,7 +66,7 @@ public class UserController : ControllerBase
     }
 
     // Add user to tenant (tenant role optional)
-    [RequirePermission("tenant.admin.manage.users")]
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
     [HttpPost("tenant/add")]
     public async Task<ActionResult> AddUserToTenant([FromBody] AddUserToTenantDto dto)
     {
@@ -85,7 +88,7 @@ public class UserController : ControllerBase
     }
 
     // Add user to site (with site role required)
-    [RequirePermission("tenant.manage.beacon.config")]
+    [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
     [HttpPost("site/add")]
     public async Task<ActionResult> AddUserToSite([FromBody] AddUserToSiteDto dto)
     {
@@ -106,24 +109,77 @@ public class UserController : ControllerBase
         }
     }
 
-    // Add user to role (scope-aware)
-    [RequirePermission("tenant.admin.manage.users")]
-    [HttpPost("role/add")]
-    public async Task<ActionResult> AddUserToRole([FromBody] AddUserToRoleDto dto)
+    // Add user to site role
+    [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
+    [HttpPost("role/site/add")]
+    public async Task<ActionResult> AddUserToRoleSite([FromBody] AddUserToRoleDto dto)
     {
         try
         {
-            var result = await _userService.AddUserToRole(dto);
-            if (!result)
-            {
-                return BadRequest("Failed to add user to role. User may not exist, role may be invalid, or scope mismatch.");
-            }
-            
-            return Ok(new { Message = "User added to role successfully" });
+            await _userService.AddUserToRole(dto, RoleScope.Site);
+            return Ok(new { Message = "User added to site role successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error adding user to role");
+            _logger.LogError(ex, "Error adding user to site role");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Add user to tenant role
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
+    [HttpPost("role/tenant/add")]
+    public async Task<ActionResult> AddUserToRoleTenant([FromBody] AddUserToRoleDto dto)
+    {
+        try
+        {
+            await _userService.AddUserToRole(dto, RoleScope.Tenant);
+            return Ok(new { Message = "User added to tenant role successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding user to tenant role");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Add user to internal role
+  //  [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
+    [HttpPost("role/internal/add")]
+    public async Task<ActionResult> AddUserToRoleInternal([FromBody] AddUserToRoleDto dto)
+    {
+        try
+        {
+            await _userService.AddUserToRole(dto, RoleScope.Internal);
+            return Ok(new { Message = "User added to internal role successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding user to internal role");
             return StatusCode(500, "Internal server error");
         }
     }
@@ -150,60 +206,4 @@ public class UserController : ControllerBase
         }
     }
 
-    // Add internal role to user (system-wide)
-    [RequirePermission("systemadmin.manage.users")]
-    [HttpPost("internal-role/add")]
-    public async Task<ActionResult> AddInternalRole([FromBody] AddInternalRoleDto dto)
-    {
-        try
-        {
-            var result = await _userService.AddInternalRole(dto.Email, Guid.Parse(dto.RoleId));
-            if (!result)
-            {
-                return BadRequest("Failed to add internal role. User may not exist or role is not an internal role.");
-            }
-            
-            return Ok(new { Message = "Internal role added successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error adding internal role");
-            return StatusCode(500, "Internal server error");
-        }
-    }
-
-    // Remove internal role from user (system-wide)
-    [RequirePermission("systemadmin.manage.users")]
-    [HttpPost("internal-role/remove")]
-    public async Task<ActionResult> RemoveInternalRole([FromBody] RemoveInternalRoleDto dto)
-    {
-        try
-        {
-            var result = await _userService.RemoveInternalRole(dto.Email, Guid.Parse(dto.RoleId));
-            if (!result)
-            {
-                return BadRequest("Failed to remove internal role. Assignment may not exist.");
-            }
-            
-            return Ok(new { Message = "Internal role removed successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error removing internal role");
-            return StatusCode(500, "Internal server error");
-        }
-    }
-}
-
-// Additional DTOs for internal role management
-public class AddInternalRoleDto
-{
-    public required string Email { get; set; }
-    public required string RoleId { get; set; }
-}
-
-public class RemoveInternalRoleDto
-{
-    public required string Email { get; set; }
-    public required string RoleId { get; set; }
 }

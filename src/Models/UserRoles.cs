@@ -21,8 +21,6 @@ public class UserRoles : BaseObject
     
     public RoleScope Scope { get; set; }
     
-    public bool IsActive { get; set; } = true;
-    
     public virtual AuthUser? User { get; set; }
     
     public virtual Role? Role { get; set; }

@@ -1,10 +1,9 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using PlatformApi.Models.BaseModels;
 
-namespace NetStarterCommon.Core.Common.Services
+namespace PlatformApi.Services
 {
     public interface IUnitOfWork<TContext> where TContext : DbContext
     {

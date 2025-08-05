@@ -11,6 +11,6 @@ public class PermissionDto : BaseObjectDto
     [StringLength(50)]
     public string? Description { get; set; }
 
-    public bool IsDefaultFlg { get; set; }
+    public RoleScope ApplicableScopes { get; set; }
     
 }
