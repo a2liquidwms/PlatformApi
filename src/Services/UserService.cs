@@ -318,4 +318,55 @@ public class UserService : IUserService
 
         return allPermissions!;
     }
+
+    public async Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId)
+    {
+        // Get all tenants where user is explicitly assigned via UserTenant table
+        var tenants = await _context.UserTenants
+            .Where(ut => ut.UserId == userId)
+            .Include(ut => ut.Tenant)
+            .Select(ut => new TenantDto 
+            { 
+                Id = ut.Tenant!.Id, 
+                Name = ut.Tenant!.Name, 
+                Code = ut.Tenant!.Code, 
+                SubDomain = ut.Tenant!.SubDomain 
+            })
+            .ToListAsync();
+            
+        return tenants;
+    }
+
+    public async Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid? tenantId = null)
+    {
+        IQueryable<UserSite> query = _context.UserSites
+            .Where(us => us.UserId == userId && us.IsActive);
+
+        if (tenantId.HasValue)
+        {
+            query = query.Where(us => us.TenantId == tenantId.Value);
+        }
+
+        var userSites = await query.Include(us => us.Site).ToListAsync();
+        
+        return userSites.Where(us => us.Site != null).Select(us => new SiteDto 
+        { 
+            Id = us.Site!.Id, 
+            Name = us.Site!.Name, 
+            TenantId = us.Site!.TenantId,
+            IsActive = us.Site!.IsActive 
+        });
+    }
+
+    public async Task<bool> HasTenantAccess(Guid userId, Guid tenantId)
+    {
+        return await _context.UserTenants
+            .AnyAsync(ut => ut.UserId == userId && ut.TenantId == tenantId);
+    }
+
+    public async Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId)
+    {
+        return await _context.UserSites
+            .AnyAsync(us => us.UserId == userId && us.SiteId == siteId && us.TenantId == tenantId && us.IsActive);
+    }
 }

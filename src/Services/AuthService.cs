@@ -7,7 +7,6 @@ using System.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using NetStarterCommon.Core.Common.Models;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Services;
 using PlatformApi.Common.Tenant;
@@ -28,9 +27,8 @@ public class AuthService : IAuthService
     private readonly ILogger<AuthService> _logger;
     private readonly PlatformDbContext _context;
     private readonly IUnitOfWork<PlatformDbContext> _uow;
-    private readonly IHttpContextAccessor _httpContext;
     private readonly TenantHelper _tenantHelper;
-    private readonly IOldUserService _oldUserService;
+    private readonly IUserService _userService;
     private readonly IEmailService _emailService;
     private readonly IBrandingService _brandingService;
     private readonly ISnsService _snsService;
@@ -39,8 +37,8 @@ public class AuthService : IAuthService
 
     public AuthService(UserManager<AuthUser> userManager, SignInManager<AuthUser> signInManager,
         IConfiguration configuration, ILogger<AuthService> logger, PlatformDbContext context,
-        IUnitOfWork<PlatformDbContext> uow, IHttpContextAccessor httpContext, TenantHelper tenantHelper, 
-        IOldUserService oldUserService, IEmailService emailService, IBrandingService brandingService, ISnsService snsService)
+        IUnitOfWork<PlatformDbContext> uow, TenantHelper tenantHelper, 
+        IUserService userService, IEmailService emailService, IBrandingService brandingService, ISnsService snsService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -48,9 +46,8 @@ public class AuthService : IAuthService
         _logger = logger;
         _context = context;
         _uow = uow;
-        _httpContext = httpContext;
         _tenantHelper = tenantHelper;
-        _oldUserService = oldUserService;
+        _userService = userService;
         _emailService = emailService;
         _brandingService = brandingService;
         _snsService = snsService;
@@ -80,7 +77,7 @@ public class AuthService : IAuthService
         return result;
     }
 
-    public async Task<AuthTokenBundle> Login(string email, string password, Guid? tenantId = null)
+    public async Task<AuthTokenBundle> Login(string email, string password, Guid? tenantId = null, Guid? siteId = null)
     {
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null)
@@ -96,126 +93,141 @@ public class AuthService : IAuthService
 
         if (tenantId != null)
         {
-            await FetchAndSetTenant(user, (Guid)tenantId);
+            await ValidateUserTenantAccess(user, (Guid)tenantId);
         }
 
-        var token = await GenerateTokenBundle(user, tenantId);
+        if (siteId != null && tenantId == null)
+        {
+            throw new InvalidDataException("Cannot login to site without specifying tenant");
+        }
+
+        if (siteId != null)
+        {
+            await ValidateUserSiteAccess(user, (Guid)siteId, (Guid)tenantId!);
+        }
+
+        var token = await GenerateTokenBundle(user, tenantId, siteId);
 
         return token;
     }
 
-    private async Task<bool> FetchAndSetTenant(AuthUser user, Guid tenantId)
+    private async Task ValidateUserTenantAccess(AuthUser user, Guid tenantId)
     {
-        //check for access
-        var userTenants = await _oldUserService.GetUserTenants(user.Id.ToString());
-
-        //if not part of tenant
-        if (!userTenants.Any(t => t?.Id != null && t?.Id == tenantId))
+        // Check for tenant membership using UserService
+        var hasAccess = await _userService.HasTenantAccess(user.Id, tenantId);
+        
+        if (!hasAccess)
         {
-            //add to tenant as Guest
-            var addUserResult = await _oldUserService.AddUserToRole(user.Id.ToString(), tenantId, Guid.Parse(AuthApiConstants.SUPERADMIN_ROLE));
-            if (!addUserResult)
-            {
-                throw new InvalidDataException("Could not add user to Guest role");
-            }
+            throw new InvalidDataException("Tenant access denied");
         }
-
-        //set context
-        _httpContext.HttpContext!.Items[CommonConstants.TenantHttpContext] = tenantId;
-
-        return true;
     }
 
-    public async Task<AuthUser?> GetUserByEmail(string email)
+    private async Task ValidateUserSiteAccess(AuthUser user, Guid siteId, Guid tenantId)
     {
-        return await _userManager.FindByEmailAsync(email);
+        var hasAccess = await _userService.HasSiteAccess(user.Id, siteId, tenantId);
+        
+        if (!hasAccess)
+        {
+            throw new InvalidDataException("Site Access denied");
+        }
     }
 
-    public async Task<AuthTokenBundle> ExternalLoginCallback(Guid? tenantId)
-    {
-        var info = await _signInManager.GetExternalLoginInfoAsync();
-        if (info == null)
-        {
-            throw new InvalidOperationException("Invalid login provider");
-        }
+    // public async Task<AuthTokenBundle> ExternalLoginCallback(Guid? tenantId, Guid? siteId = null)
+    // {
+    //     var info = await _signInManager.GetExternalLoginInfoAsync();
+    //     if (info == null)
+    //     {
+    //         throw new InvalidOperationException("Invalid login provider");
+    //     }
+    //
+    //     var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+    //
+    //     if (email == null)
+    //     {
+    //         throw new InvalidOperationException("Invalid email");
+    //     }
+    //
+    //     var user = await GetUserByEmail(email);
+    //
+    //     if (user == null)
+    //     {
+    //         // Create new user if none exists
+    //         user = new AuthUser
+    //         {
+    //             UserName = email, // Using email as username is more reliable
+    //             Email = email,
+    //             EmailConfirmed = true // Since it's verified by Google
+    //         };
+    //
+    //         var createResult = await _userManager.CreateAsync(user);
+    //         if (!createResult.Succeeded)
+    //         {
+    //             _logger.LogError("Error Creating User Provider");
+    //             _logger.LogError(createResult.Errors.ToString());
+    //             throw new SystemException("Issue Creating User");
+    //         }
+    //
+    //         // Get branding context and send welcome email for external login users
+    //         var branding = await _brandingService.GetBrandingContextAsync(null, tenantId);
+    //         await _emailService.SendWelcomeEmailAsync(user.Email!, user.UserName ?? user.Email!, branding);
+    //         
+    //         // Publish user-created message for external login users
+    //         var userCreatedMessage = new UserCreatedMessage
+    //         {
+    //             UserId = user.Id.ToString(),
+    //             Email = user.Email!
+    //         };
+    //         await _snsService.PublishUserCreatedAsync(userCreatedMessage);
+    //     }
+    //
+    //     // Add the external login provider to the user if it's not already there
+    //     if (await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey) == null)
+    //     {
+    //         var addLoginResult = await _userManager.AddLoginAsync(user, info);
+    //         if (!addLoginResult.Succeeded)
+    //         {
+    //             _logger.LogError("Error Creating User Provider");
+    //             throw new SystemException("Issue Adding Provider");
+    //         }
+    //     }
+    //
+    //     // Validate site access if provided
+    //     if (siteId != null && tenantId == null)
+    //     {
+    //         throw new InvalidDataException("Cannot login to site without specifying tenant");
+    //     }
+    //
+    //     if (siteId != null)
+    //     {
+    //         await ValidateUserSiteAccess(user, (Guid)siteId, (Guid)tenantId!);
+    //     }
+    //
+    //     // Generate tokens
+    //     return await GenerateTokenBundle(user, tenantId, siteId);
+    // }
 
-        var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+    // public async Task<bool> LinkProvider(ExternalLoginRequest request, ClaimsPrincipal user)
+    // {
+    //     var validUser = await _userManager.GetUserAsync(user);
+    //     if (user == null) throw new UnauthorizedAccessException();
+    //
+    //     var loginInfo = new UserLoginInfo(request.Provider, request.ProviderKey, request.Provider);
+    //     var result = await _userManager.AddLoginAsync(validUser!, loginInfo);
+    //
+    //     if (!result.Succeeded) throw new SystemException(result.Errors.ToString());
+    //     return true;
+    // }
 
-        if (email == null)
-        {
-            throw new InvalidOperationException("Invalid email");
-        }
-
-        var user = await GetUserByEmail(email);
-
-        if (user == null)
-        {
-            // Create new user if none exists
-            user = new AuthUser
-            {
-                UserName = email, // Using email as username is more reliable
-                Email = email,
-                EmailConfirmed = true // Since it's verified by Google
-            };
-
-            var createResult = await _userManager.CreateAsync(user);
-            if (!createResult.Succeeded)
-            {
-                _logger.LogError("Error Creating User Provider");
-                _logger.LogError(createResult.Errors.ToString());
-                throw new SystemException("Issue Creating User");
-            }
-
-            // Get branding context and send welcome email for external login users
-            var branding = await _brandingService.GetBrandingContextAsync(null, tenantId);
-            await _emailService.SendWelcomeEmailAsync(user.Email!, user.UserName ?? user.Email!, branding);
-            
-            // Publish user-created message for external login users
-            var userCreatedMessage = new UserCreatedMessage
-            {
-                UserId = user.Id.ToString(),
-                Email = user.Email!
-            };
-            await _snsService.PublishUserCreatedAsync(userCreatedMessage);
-        }
-
-        // Add the external login provider to the user if it's not already there
-        if (await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey) == null)
-        {
-            var addLoginResult = await _userManager.AddLoginAsync(user, info);
-            if (!addLoginResult.Succeeded)
-            {
-                _logger.LogError("Error Creating User Provider");
-                throw new SystemException("Issue Adding Provider");
-            }
-        }
-
-        // Generate tokens
-        return await GenerateTokenBundle(user, tenantId);
-    }
-
-    public async Task<bool> LinkProvider(ExternalLoginRequest request, ClaimsPrincipal user)
-    {
-        var validUser = await _userManager.GetUserAsync(user);
-        if (user == null) throw new UnauthorizedAccessException();
-
-        var loginInfo = new UserLoginInfo(request.Provider, request.ProviderKey, request.Provider);
-        var result = await _userManager.AddLoginAsync(validUser!, loginInfo);
-
-        if (!result.Succeeded) throw new SystemException(result.Errors.ToString());
-        return true;
-    }
-
-    public async Task<bool> UnlinkProvider(UnlinkProviderRequest request, ClaimsPrincipal user)
-    {
-        var validUser = await _userManager.GetUserAsync(user);
-        if (user == null) throw new UnauthorizedAccessException();
-
-        var result = await _userManager.RemoveLoginAsync(validUser!, request.Provider, request.ProviderKey);
-
-        if (!result.Succeeded) throw new SystemException(result.Errors.ToString());
-        return true;
-    }
+    // public async Task<bool> UnlinkProvider(UnlinkProviderRequest request, ClaimsPrincipal user)
+    // {
+    //     var validUser = await _userManager.GetUserAsync(user);
+    //     if (user == null) throw new UnauthorizedAccessException();
+    //
+    //     var result = await _userManager.RemoveLoginAsync(validUser!, request.Provider, request.ProviderKey);
+    //
+    //     if (!result.Succeeded) throw new SystemException(result.Errors.ToString());
+    //     return true;
+    // }
 
     public async Task<AuthTokenBundle> RefreshToken(string userId, string refreshToken)
     {
@@ -244,7 +256,7 @@ public class AuthService : IAuthService
         }
 
         // Generate new access and refresh tokens
-        var tokenBundle = await GenerateTokenBundle(user, oldRefreshToken.TenantId);
+        var tokenBundle = await GenerateTokenBundle(user, oldRefreshToken.TenantId, oldRefreshToken.SiteId);
 
         return tokenBundle;
     }
@@ -355,10 +367,10 @@ public class AuthService : IAuthService
 
     // EXISTING METHODS (unchanged)
 
-    private async Task<AuthTokenBundle> GenerateTokenBundle(AuthUser user, Guid? tenantId = null)
+    private async Task<AuthTokenBundle> GenerateTokenBundle(AuthUser user, Guid? tenantId = null, Guid? siteId = null)
     {
-        var tokenReturn = await GenerateJwtToken(user, tenantId);
-        var refreshToken = await GenerateRefreshToken(user, tenantId);
+        var tokenReturn = await GenerateJwtToken(user, tenantId, siteId);
+        var refreshToken = await GenerateRefreshToken(user, tenantId, siteId);
 
         return new AuthTokenBundle()
         {
@@ -366,11 +378,12 @@ public class AuthService : IAuthService
             TokenType = "Bearer",
             RefreshToken = refreshToken,
             Expires = (int)new DateTimeOffset(tokenReturn.Expires).ToUnixTimeSeconds(),
-            TenantId = tenantId
+            TenantId = tenantId,
+            SiteId = siteId
         };
     }
 
-    private async Task<JwtTokenReturn> GenerateJwtToken(AuthUser user, Guid? tenantId = null)
+    private async Task<JwtTokenReturn> GenerateJwtToken(AuthUser user, Guid? tenantId = null, Guid? siteId = null)
     {
         var issuer = _configuration["JWT_ISSUER"] ?? throw new InvalidOperationException("JWT_ISSUER is missing");
         var audience = _configuration["JWT_AUDIENCE"] ?? throw new InvalidOperationException("JWT_AUDIENCE is missing");
@@ -380,7 +393,7 @@ public class AuthService : IAuthService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = await GetAllClaims(user, tenantId);
+        var claims = await GetAllClaims(user, tenantId, siteId);
 
         var newToken = new JwtSecurityToken(
             issuer: issuer,
@@ -399,9 +412,11 @@ public class AuthService : IAuthService
         };
     }
 
-    private async Task<List<Claim>> GetAllClaims(AuthUser user, Guid? tenantId = null)
+    private async Task<List<Claim>> GetAllClaims(AuthUser user, Guid? tenantId = null, Guid? siteId = null)
     {
         var allClaims = new List<Claim>();
+        
+        // Standard JWT claims
         var defaultClaims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
@@ -411,107 +426,68 @@ public class AuthService : IAuthService
         };
         allClaims.AddRange(defaultClaims);
 
-        //get tenant claims
-        var tenantClaims = await GetTenantClaims(user, tenantId);
-        allClaims.AddRange(tenantClaims);
-        
-        var activeTenantClaim = tenantClaims.FirstOrDefault(c => c.Type == CommonConstants.ActiveTenantClaim);
-        Guid? activeTenantId = null;
-    
-        if (activeTenantClaim != null && Guid.TryParse(activeTenantClaim.Value, out var parsedTenantId))
+        // Add context claims (tenant/site)
+        if (tenantId.HasValue)
         {
-            activeTenantId = parsedTenantId;
+            allClaims.Add(new Claim(CommonConstants.ActiveTenantClaim, tenantId.Value.ToString()));
         }
         
-        //get permission claims
-        var roleClaims = await GetRoleClaims(user, activeTenantId);
+        if (siteId.HasValue)
+        {
+            allClaims.Add(new Claim(CommonConstants.ActiveSiteClaim, siteId.Value.ToString()));
+        }
+
+        // Get role claims based on context
+        var roleClaims = await GetContextualRoleClaims(user, tenantId, siteId);
         allClaims.AddRange(roleClaims);
 
         return allClaims;
     }
 
-    private async Task<List<Claim>> GetRoleClaims(AuthUser user, Guid? tenant)
+    private async Task<List<Claim>> GetContextualRoleClaims(AuthUser user, Guid? tenantId, Guid? siteId)
     {
-        var roleClaims = new List<Claim>();
-        var adminRoles = new List<Role>();
-
-        var roles = await _oldUserService.GetUserRoles(user.Id.ToString(), tenant);
-        // ReSharper disable once PossibleMultipleEnumeration
-        var userRoleClaim = CreateClaimArray(roles.ToList(), CommonConstants.RolesClaim);
-        roleClaims.Add(userRoleClaim);
-        // ReSharper disable once PossibleMultipleEnumeration
-        foreach (var r in roles)
+        var allRoles = new List<Role>();
+        
+        // Always get Internal and Default roles
+        var defaultRoles = await _userService.GetUserRoles(user.Id, RoleScope.Default);
+        var internalRoles = await _userService.GetUserRoles(user.Id, RoleScope.Internal);
+        
+        allRoles.AddRange(defaultRoles);
+        allRoles.AddRange(internalRoles);
+        
+        // Add tenant roles if tenant context exists
+        if (tenantId.HasValue)
         {
-            if (r.IsSystemRole)
-            {
-                adminRoles.Add(r);
-            }
+            var tenantRoles = await _userService.GetUserRoles(user.Id, RoleScope.Tenant, tenantId);
+            allRoles.AddRange(tenantRoles);
         }
-
+        
+        // Add site roles if site context exists
+        if (siteId.HasValue && tenantId.HasValue)
+        {
+            var siteRoles = await _userService.GetUserRoles(user.Id, RoleScope.Site, tenantId, siteId);
+            allRoles.AddRange(siteRoles);
+        }
+        
+        // Create role claims
+        var roleClaims = new List<Claim>();
+        var allRoleNames = allRoles.Select(r => r.Name).Distinct().ToArray();
+        var roleJsonArray = JsonSerializer.Serialize(allRoleNames);
+        roleClaims.Add(new Claim(CommonConstants.RolesClaim, roleJsonArray, JsonClaimValueTypes.JsonArray));
+        
+        // Add admin roles claim for system roles
+        var adminRoles = allRoles.Where(r => r.IsSystemRole).ToList();
         if (adminRoles.Any())
         {
-            var adminClaims = CreateClaimArray(adminRoles.ToList(), CommonConstants.AdminRolesClaim);
-            roleClaims.Add(adminClaims);
+            var adminRoleNames = adminRoles.Select(r => r.Name).ToArray();
+            var adminJsonArray = JsonSerializer.Serialize(adminRoleNames);
+            roleClaims.Add(new Claim(CommonConstants.AdminRolesClaim, adminJsonArray, JsonClaimValueTypes.JsonArray));
         }
 
         return roleClaims;
     }
 
-    private Claim CreateClaimArray(List<Role> roles, string claimKey)
-    {
-        // Extract role names and store them in a string array
-        var roleNames = roles.Select(r => r.Name).ToArray();
-
-        // Serialize the role names array to a properly formatted JSON string
-        var roleJsonArray = JsonSerializer.Serialize(roleNames);
-    
-        // Return the claim with the JSON array value
-        return new Claim(claimKey, roleJsonArray, JsonClaimValueTypes.JsonArray);
-    }
-
-    private async Task<List<Claim>> GetTenantClaims(AuthUser user, Guid? tenant)
-    {
-        var tenantClaims = new List<Claim>();
-        var tenants = await _oldUserService.GetUserTenants(user.Id.ToString()) ?? new List<Tenant>();
-
-        // Convert each tenant to an object with just the properties you need
-        var tenantArray = tenants.Select(t => new TenantInfo { Id = t!.Id, Name = t.Name }).ToArray();
-
-        // Serialize the tenant array to a JSON string
-        var tenantJsonArray = JsonSerializer.Serialize(tenantArray);
-
-        // Create a single claim with the JSON array as its value, and specify that its type is JSON.
-        var tenantListClaim = new Claim(CommonConstants.TenantsClaim, tenantJsonArray, JsonClaimValueTypes.Json);
-        tenantClaims.Add(tenantListClaim);
-
-        if (tenant != null)
-        {
-            // Check if the provided tenant ID exists in the user's tenants
-            // ReSharper disable once PossibleMultipleEnumeration
-            var tenantExists = tenants.Any(t => t!.Id == tenant.Value);
-        
-            if (tenantExists)
-            {
-                var activeTenantClaim = new Claim(CommonConstants.ActiveTenantClaim, tenant.Value.ToString());
-                tenantClaims.Add(activeTenantClaim);
-            }
-            else
-            {
-                throw new UnauthorizedAccessException($"Invalid Tenant ID or no Access: {tenant}");
-            }
-        }
-
-        //set active if only one tenant exists
-        if (tenant == null && tenantArray.Count() == 1)
-        {
-            var activeTenantClaim = new Claim(CommonConstants.ActiveTenantClaim, tenantArray[0].Id.ToString());
-            tenantClaims.Add(activeTenantClaim);
-        }
-
-        return tenantClaims;
-    }
-
-    private async Task<string> GenerateRefreshToken(AuthUser user, Guid? tenantId = null)
+    private async Task<string> GenerateRefreshToken(AuthUser user, Guid? tenantId = null, Guid? siteId = null)
     {
         var randomBytes = RandomNumberGenerator.GetBytes(64);
         var urlSafeToken = Convert.ToBase64String(randomBytes)
@@ -525,7 +501,8 @@ public class AuthService : IAuthService
             UserId = user.Id,
             Expires = DateTime.UtcNow.AddDays(Convert.ToDouble(_refreshTokenDays)),
             IsRevoked = false,
-            TenantId = tenantId
+            TenantId = tenantId,
+            SiteId = siteId
         };
 
         _context.RefreshTokens.Add(refreshToken);
@@ -533,103 +510,87 @@ public class AuthService : IAuthService
 
         return refreshToken.Token;
     }
+
+    public async Task<AuthTokenBundle> SwitchTenant(string userId, Guid tenantId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            throw new NotFoundException("User not found");
+        }
+
+        // Validate user has access to this tenant using UserService
+        var hasAccess = await _userService.HasTenantAccess(user.Id, tenantId);
+        
+        if (!hasAccess)
+        {
+            throw new InvalidDataException("User is not assigned to this tenant");
+        }
+
+        // Revoke all existing refresh tokens for this user
+        var existingTokens = _context.RefreshTokens.Where(rt => rt.UserId == user.Id && !rt.IsRevoked);
+        foreach (var token in existingTokens)
+        {
+            token.IsRevoked = true;
+        }
+
+        // Generate new token bundle with tenant context (no site)
+        var tokenBundle = await GenerateTokenBundle(user, tenantId, null);
+        
+        return tokenBundle;
+    }
+
+    public async Task<AuthTokenBundle> SwitchSite(string userId, Guid siteId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            throw new NotFoundException("User not found");
+        }
+
+        // Get site info to validate tenant
+        var site = await _context.Sites
+            .FirstOrDefaultAsync(s => s.Id == siteId && s.IsActive);
+        
+        if (site == null)
+        {
+            throw new NotFoundException("Site not found or inactive");
+        }
+
+        // Validate user has access to this site
+        await ValidateUserSiteAccess(user, siteId, site.TenantId);
+
+        // Revoke all existing refresh tokens for this user
+        var existingTokens = _context.RefreshTokens.Where(rt => rt.UserId == user.Id && !rt.IsRevoked);
+        foreach (var token in existingTokens)
+        {
+            token.IsRevoked = true;
+        }
+
+        // Generate new token bundle with site context (includes tenant)
+        var tokenBundle = await GenerateTokenBundle(user, site.TenantId, siteId);
+        
+        return tokenBundle;
+    }
+
+    public async Task<IEnumerable<TenantDto>> GetAvailableTenants(string userId)
+    {
+        var userGuid = Guid.Parse(userId);
+        return await _userService.GetUserTenants(userGuid);
+    }
+
+    public async Task<IEnumerable<SiteDto>> GetAvailableSites(string userId, Guid? tenantId = null)
+    {
+        var userGuid = Guid.Parse(userId);
+        return await _userService.GetUserSites(userGuid, tenantId);
+    }
     
+    // TODO: Refactor this method to not depend on IOldUserService
     public async Task<IdentityResult> RegisterViaInvitationAsync(RegisterViaInvitationRequest request)
     {
-        try
-        {
-            // Validate invitation token
-            var invitation = await _oldUserService.ValidateInvitationTokenAsync(request.InvitationToken);
-            if (invitation == null)
-            {
-                return IdentityResult.Failed(new IdentityError
-                {
-                    Description = "Invalid or expired invitation token"
-                });
-            }
-            
-            // Verify email matches invitation
-            if (!string.Equals(invitation.Email, request.Email, StringComparison.OrdinalIgnoreCase))
-            {
-                return IdentityResult.Failed(new IdentityError
-                {
-                    Description = "Email does not match invitation"
-                });
-            }
-            
-            // Check if user already exists
-            var existingUser = await _userManager.FindByEmailAsync(request.Email);
-            if (existingUser != null)
-            {
-                return IdentityResult.Failed(new IdentityError
-                {
-                    Description = "User with this email already exists"
-                });
-            }
-            
-            // Create new user
-            var user = new AuthUser
-            {
-                Email = request.Email,
-                UserName = request.Email,
-                EmailConfirmed = true // Skip email verification for invited users
-            };
-            
-            var result = await _userManager.CreateAsync(user, request.Password);
-            if (!result.Succeeded)
-            {
-                return result;
-            }
-            
-            // Add user to tenant
-            await _oldUserService.AddUserToTenant(user.Id.ToString(), invitation.TenantId);
-            
-            // Assign roles if specified in invitation
-            if (!string.IsNullOrEmpty(invitation.InvitedRoles))
-            {
-                try
-                {
-                    var roleIds = JsonSerializer.Deserialize<List<Guid>>(invitation.InvitedRoles);
-                    if (roleIds != null)
-                    {
-                        foreach (var roleId in roleIds)
-                        {
-                            await _oldUserService.AddUserToRole(user.Id.ToString(), invitation.TenantId, roleId);
-                        }
-                    }
-                }
-                catch (JsonException ex)
-                {
-                    _logger.LogWarning(ex, "Failed to deserialize invited roles for user {UserId}", user.Id);
-                }
-            }
-            
-            // Mark invitation as used
-            invitation.IsUsed = true;
-            _context.UserInvitations.Update(invitation);
-            await _uow.CompleteAsync();
-            
-            // Publish user created message
-            var userCreatedMessage = new UserCreatedMessage
-            {
-                UserId = user.Id.ToString(),
-                Email = user.Email!,
-                CreatedAt = DateTime.UtcNow
-            };
-            await _snsService.PublishUserCreatedAsync(userCreatedMessage);
-            
-            _logger.LogInformation("User {Email} registered via invitation successfully", request.Email);
-            
-            return IdentityResult.Success;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during invitation-based registration for {Email}", request.Email);
-            return IdentityResult.Failed(new IdentityError
-            {
-                Description = "Registration failed"
-            });
-        }
+        // This method needs to be refactored to use IUserService instead of IOldUserService
+        await Task.CompletedTask; // Remove this when implementing
+        throw new NotImplementedException("RegisterViaInvitationAsync needs to be refactored to use new user service");
     }
 }
 

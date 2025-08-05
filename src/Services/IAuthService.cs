@@ -9,12 +9,20 @@ namespace PlatformApi.Services;
 public interface IAuthService
 {
     Task<IdentityResult> Register(AuthUser user, string password, string? subdomain = null, Guid? tenantId = null);
-    Task<AuthTokenBundle> Login(string email, string password, Guid? tenantId);
-    Task<AuthUser?> GetUserByEmail(string email);
-    Task<AuthTokenBundle> ExternalLoginCallback(Guid? tenantId);
-    Task<bool> LinkProvider(ExternalLoginRequest request, ClaimsPrincipal user);
-    Task<bool> UnlinkProvider(UnlinkProviderRequest request, ClaimsPrincipal user);
+    Task<AuthTokenBundle> Login(string email, string password, Guid? tenantId = null, Guid? siteId = null);
+
+    //Task<AuthTokenBundle> ExternalLoginCallback(Guid? tenantId, Guid? siteId = null);
+    //Task<bool> LinkProvider(ExternalLoginRequest request, ClaimsPrincipal user);
+    //Task<bool> UnlinkProvider(UnlinkProviderRequest request, ClaimsPrincipal user);
     Task<AuthTokenBundle> RefreshToken(string userId,string refreshToken);
+    
+    // Tenant/Site switching methods
+    Task<AuthTokenBundle> SwitchTenant(string userId, Guid tenantId);
+    Task<AuthTokenBundle> SwitchSite(string userId, Guid siteId);
+    
+    // Availability query methods
+    Task<IEnumerable<TenantDto>> GetAvailableTenants(string userId);
+    Task<IEnumerable<SiteDto>> GetAvailableSites(string userId, Guid? tenantId = null);
     
     // Email-related methods
 

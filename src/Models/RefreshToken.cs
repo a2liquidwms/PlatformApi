@@ -17,8 +17,10 @@ public class RefreshToken : BaseObject
     public bool IsRevoked { get; set; } = false;
     
     public Guid? TenantId { get; set; }
+    public Guid? SiteId { get; set; }
     
     public virtual Tenant? Tenant { get; set; }
+    public virtual Site? Site { get; set; }
 }
 
 public class RefreshRequest

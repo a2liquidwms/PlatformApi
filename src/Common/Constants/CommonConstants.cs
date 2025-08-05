@@ -10,6 +10,8 @@ public static class CommonConstants
     
     public const string ActiveTenantClaim = "active_tenant";
     
+    public const string ActiveSiteClaim = "active_site";
+    
     public const string ClaimUserId = "userid";
     
     public const string RolesClaim = "roles";

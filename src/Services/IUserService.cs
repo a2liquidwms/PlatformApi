@@ -22,4 +22,12 @@ public interface IUserService
     Task<AuthUser?> GetUserByEmail(string email);
     Task<IEnumerable<Role>> GetUserRoles(Guid userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null);
     Task<IEnumerable<Permission>?> GetUserPermissions(Guid userId, Guid? tenantId = null, Guid? siteId = null);
+    
+    // User membership lookups
+    Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId);
+    Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid? tenantId = null);
+    
+    // User membership validation
+    Task<bool> HasTenantAccess(Guid userId, Guid tenantId);
+    Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId);
 }

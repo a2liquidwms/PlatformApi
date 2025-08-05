@@ -9,4 +9,5 @@ public class AuthTokenBundle
     public int Expires { get; set; }
     
     public Guid? TenantId { get; set; }
+    public Guid? SiteId { get; set; }
 } 

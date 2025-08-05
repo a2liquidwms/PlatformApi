@@ -84,6 +84,24 @@ docker run -p 8080:8080 platformapi
 - `IEmailService` - AWS SES integration for email notifications
 - `ISnsService` - AWS SNS integration for notifications
 
+### Service Responsibilities (Refined Architecture)
+
+- **PermissionService**: Role/Permission entity management (CRUD operations)
+  - Create/Update/Delete roles and permissions
+  - Link permissions to roles
+  - System-wide role definitions
+
+- **UserService**: User relationship and context queries
+  - User-tenant/site memberships
+  - User role assignments (contextual)
+  - User permission resolution (contextual)
+  - User access validation
+
+- **AuthService**: Authentication flows only
+  - Login/logout
+  - Token generation (using UserService for claims)
+  - Email workflows
+
 ### External Dependencies
 
 - **MySQL Database**: Primary data store with Entity Framework Core
