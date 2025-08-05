@@ -14,8 +14,6 @@ public static class RolePermissionConstants
     
     public const string SysAdminManagePermissions ="systemadmin.manage.permissions";
     
-    public const string DefaultViewProfile = "default.view.profile";
-    
     public const string DefaultAll = "default:all";
 
 }

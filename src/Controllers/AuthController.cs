@@ -63,84 +63,84 @@ public class AuthController : ControllerBase
         }
     }
 
-    [AllowAnonymous]
-    [HttpGet("login/{provider}")]
-    public IActionResult ExternalLogin(string provider, [FromQuery] string redirectUrl, Guid? tenantId = null)
-    {
-        if (string.IsNullOrEmpty(redirectUrl))
-        {
-            return BadRequest("redirectUrl is required");
-        }
+    // [AllowAnonymous]
+    // [HttpGet("login/{provider}")]
+    // public IActionResult ExternalLogin(string provider, [FromQuery] string redirectUrl, Guid? tenantId = null)
+    // {
+    //     if (string.IsNullOrEmpty(redirectUrl))
+    //     {
+    //         return BadRequest("redirectUrl is required");
+    //     }
+    //
+    //     // Validate that redirectUrl is from an allowed domain
+    //     if (!IsValidRedirectUrl(redirectUrl))
+    //     {
+    //         _logger.LogWarning("Invalid redirect domain attempted: {RedirectUrl}", redirectUrl);
+    //         return BadRequest("Invalid redirect URL domain");
+    //     }
+    //
+    //     // Save the redirectUrl in the temporary cookie to retrieve in the callback
+    //     var properties = _signInManager.ConfigureExternalAuthenticationProperties(
+    //         provider,
+    //         Url.Action(nameof(ExternalLoginCallback), "Auth", null, Request.Scheme)
+    //     );
+    //
+    //     // Store redirectUrl in the AuthenticationProperties
+    //     properties.Items["redirectUrl"] = redirectUrl;
+    //     properties.Items["tenantId"] = tenantId.ToString();
+    //
+    //     // Challenge with the provider and properties
+    //     return Challenge(properties, provider);
+    // }
 
-        // Validate that redirectUrl is from an allowed domain
-        if (!IsValidRedirectUrl(redirectUrl))
-        {
-            _logger.LogWarning("Invalid redirect domain attempted: {RedirectUrl}", redirectUrl);
-            return BadRequest("Invalid redirect URL domain");
-        }
-
-        // Save the redirectUrl in the temporary cookie to retrieve in the callback
-        var properties = _signInManager.ConfigureExternalAuthenticationProperties(
-            provider,
-            Url.Action(nameof(ExternalLoginCallback), "Auth", null, Request.Scheme)
-        );
-
-        // Store redirectUrl in the AuthenticationProperties
-        properties.Items["redirectUrl"] = redirectUrl;
-        properties.Items["tenantId"] = tenantId.ToString();
-
-        // Challenge with the provider and properties
-        return Challenge(properties, provider);
-    }
-
-    [AllowAnonymous]
-    [HttpGet("external-login-callback")]
-    public async Task<IActionResult> ExternalLoginCallback()
-    {
-        // Get the login info and check for errors
-        var info = await _signInManager.GetExternalLoginInfoAsync();
-        if (info == null)
-        {
-            return RedirectToAction("Login", new { error = "External_login_failed" });
-        }
-
-        // Retrieve the redirectUrl from the authentication properties
-        var redirectUrl = info.AuthenticationProperties?.Items["redirectUrl"] ?? "/";
-        var inputTenantId = info.AuthenticationProperties?.Items["tenantId"] ?? null;
-
-        Guid? tenantId = null;
-
-        if (!string.IsNullOrEmpty(inputTenantId))
-        {
-            if (Guid.TryParse(inputTenantId, out var parsedTenantId))
-            {
-                tenantId = parsedTenantId;
-            }
-            else
-            {
-                throw new InvalidDataException("Invalid tenant ID format.");
-            }
-        }
-
-        try
-        {
-            var tokenBundle = await _authService.ExternalLoginCallback(tenantId);
-            var redirectParams =
-                $"token={tokenBundle.AccessToken}&refreshToken={tokenBundle.RefreshToken}&tokenType={tokenBundle.TokenType}&expires={tokenBundle.Expires}";
-
-            if (tenantId.HasValue)
-            {
-                redirectParams += $"&tenantId={tenantId}";
-            }
-
-            return Redirect($"{redirectUrl}?{redirectParams}");
-         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "External login callback failed");
-            return Redirect($"{redirectUrl}?error=External_login_failed");
-        }
-    }
+    // [AllowAnonymous]
+    // [HttpGet("external-login-callback")]
+    // public async Task<IActionResult> ExternalLoginCallback()
+    // {
+    //     // Get the login info and check for errors
+    //     var info = await _signInManager.GetExternalLoginInfoAsync();
+    //     if (info == null)
+    //     {
+    //         return RedirectToAction("Login", new { error = "External_login_failed" });
+    //     }
+    //
+    //     // Retrieve the redirectUrl from the authentication properties
+    //     var redirectUrl = info.AuthenticationProperties?.Items["redirectUrl"] ?? "/";
+    //     var inputTenantId = info.AuthenticationProperties?.Items["tenantId"] ?? null;
+    //
+    //     Guid? tenantId = null;
+    //
+    //     if (!string.IsNullOrEmpty(inputTenantId))
+    //     {
+    //         if (Guid.TryParse(inputTenantId, out var parsedTenantId))
+    //         {
+    //             tenantId = parsedTenantId;
+    //         }
+    //         else
+    //         {
+    //             throw new InvalidDataException("Invalid tenant ID format.");
+    //         }
+    //     }
+    //
+    //     try
+    //     {
+    //         var tokenBundle = await _authService.ExternalLoginCallback(tenantId);
+    //         var redirectParams =
+    //             $"token={tokenBundle.AccessToken}&refreshToken={tokenBundle.RefreshToken}&tokenType={tokenBundle.TokenType}&expires={tokenBundle.Expires}";
+    //
+    //         if (tenantId.HasValue)
+    //         {
+    //             redirectParams += $"&tenantId={tenantId}";
+    //         }
+    //
+    //         return Redirect($"{redirectUrl}?{redirectParams}");
+    //      }
+    //     catch (Exception ex)
+    //     {
+    //         _logger.LogError(ex, "External login callback failed");
+    //         return Redirect($"{redirectUrl}?error=External_login_failed");
+    //     }
+    // }
     
     [AllowAnonymous]
     [HttpPost("confirm-email")]
@@ -251,96 +251,98 @@ public class AuthController : ControllerBase
         }
     }
     
-    private bool IsValidRedirectUrl(string url)
-    {
-        try
-        {
-            // Parse the URL to check its domain
-            var uri = new Uri(url);
+    // private bool IsValidRedirectUrl(string url)
+    // {
+    //     try
+    //     {
+    //         // Parse the URL to check its domain
+    //         var uri = new Uri(url);
+    //
+    //         // Get allowed domains from environment variable
+    //         var allowedDomainsEnv = Environment.GetEnvironmentVariable("ALLOWED_REDIRECT_DOMAINS") ?? "";
+    //
+    //         return IsHostAllowed(uri.ToString(), allowedDomainsEnv);
+    //     }
+    //     catch
+    //     {
+    //         // If URL is malformed or any other error
+    //         return false;
+    //     }
+    // }
 
-            // Get allowed domains from environment variable
-            var allowedDomainsEnv = Environment.GetEnvironmentVariable("ALLOWED_REDIRECT_DOMAINS") ?? "";
-
-            return IsHostAllowed(uri.ToString(), allowedDomainsEnv);
-        }
-        catch
-        {
-            // If URL is malformed or any other error
-            return false;
-        }
-    }
-
-    private bool IsHostAllowed(string host, string allowedDomainsString)
-    {
-        // If wildcard is specified, allow all domains
-        if (allowedDomainsString.Equals("*"))
-        {
-            return true;
-        }
-
-        // If empty, use a default domain (optional - you might want to be strict and return false)
-        if (string.IsNullOrWhiteSpace(allowedDomainsString))
-        {
-            _logger.LogWarning("Missing Config - allowed domain string: {AllowedDomainsString}", allowedDomainsString);
-            return false;
-        }
-        // if (string.IsNullOrWhiteSpace(allowedDomainsString))
-        // {
-        //     var defaultDomain = Environment.GetEnvironmentVariable("APPLICATION_DOMAIN");
-        //     return !string.IsNullOrEmpty(defaultDomain) && 
-        //            (host.Equals(defaultDomain, StringComparison.OrdinalIgnoreCase) || 
-        //             host.EndsWith($".{defaultDomain}", StringComparison.OrdinalIgnoreCase));
-        // }
-
-        // Split the comma-separated domains and check if host matches or is a subdomain
-        var allowedDomains = allowedDomainsString.Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(d => d.Trim())
-            .ToList();
-
-        return allowedDomains.Any(domain =>
-            host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
-            host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase));
-    }
+    // private bool IsHostAllowed(string host, string allowedDomainsString)
+    // {
+    //     // If wildcard is specified, allow all domains
+    //     if (allowedDomainsString.Equals("*"))
+    //     {
+    //         return true;
+    //     }
+    //
+    //     // If empty, use a default domain (optional - you might want to be strict and return false)
+    //     if (string.IsNullOrWhiteSpace(allowedDomainsString))
+    //     {
+    //         _logger.LogWarning("Missing Config - allowed domain string: {AllowedDomainsString}", allowedDomainsString);
+    //         return false;
+    //     }
+    //     // if (string.IsNullOrWhiteSpace(allowedDomainsString))
+    //     // {
+    //     //     var defaultDomain = Environment.GetEnvironmentVariable("APPLICATION_DOMAIN");
+    //     //     return !string.IsNullOrEmpty(defaultDomain) && 
+    //     //            (host.Equals(defaultDomain, StringComparison.OrdinalIgnoreCase) || 
+    //     //             host.EndsWith($".{defaultDomain}", StringComparison.OrdinalIgnoreCase));
+    //     // }
+    //
+    //     // Split the comma-separated domains and check if host matches or is a subdomain
+    //     var allowedDomains = allowedDomainsString.Split(',', StringSplitOptions.RemoveEmptyEntries)
+    //         .Select(d => d.Trim())
+    //         .ToList();
+    //
+    //     return allowedDomains.Any(domain =>
+    //         host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
+    //         host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase));
+    // }
     
-    [HttpPost("link-provider")]
-    public async Task<IActionResult> LinkProvider([FromBody] ExternalLoginRequest request)
-    {
-        try
-        {
-            var result = await _authService.LinkProvider(request, User);
-            if (!result) return BadRequest();
+    // [HttpPost("link-provider")]
+    // public async Task<IActionResult> LinkProvider([FromBody] ExternalLoginRequest request)
+    // {
+    //     try
+    //     {
+    //         var result = await _authService.LinkProvider(request, User);
+    //         if (!result) return BadRequest();
+    //
+    //         return Ok(new { Message = "Provider linked successfully" });
+    //     }
+    //     catch (UnauthorizedAccessException)
+    //     {
+    //         return Unauthorized();
+    //     }
+    //     catch (Exception)
+    //     {
+    //         return BadRequest();
+    //     }
+    // }
+    //
+    // [HttpPost("unlink-provider")]
+    // public async Task<IActionResult> UnlinkProvider([FromBody] UnlinkProviderRequest request)
+    // {
+    //     try
+    //     {
+    //         var result = await _authService.UnlinkProvider(request, User);
+    //         if (!result) return BadRequest();
+    //
+    //         return Ok(new { Message = "Provider unlinked successfully" });
+    //     }
+    //     catch (UnauthorizedAccessException)
+    //     {
+    //         return Unauthorized();
+    //     }
+    //     catch (Exception)
+    //     {
+    //         return BadRequest();
+    //     }
+    // }
 
-            return Ok(new { Message = "Provider linked successfully" });
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Unauthorized();
-        }
-        catch (Exception)
-        {
-            return BadRequest();
-        }
-    }
-    
-    [HttpPost("unlink-provider")]
-    public async Task<IActionResult> UnlinkProvider([FromBody] UnlinkProviderRequest request)
-    {
-        try
-        {
-            var result = await _authService.UnlinkProvider(request, User);
-            if (!result) return BadRequest();
 
-            return Ok(new { Message = "Provider unlinked successfully" });
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Unauthorized();
-        }
-        catch (Exception)
-        {
-            return BadRequest();
-        }
-    }
 
     [AllowAnonymous]
     [HttpPost("refresh")]
@@ -381,6 +383,3 @@ public class AuthController : ControllerBase
     }
 }
 
-public record ExternalLoginRequest(string Provider, string ProviderKey, string Email);
-
-public record UnlinkProviderRequest(string Provider, string ProviderKey);
