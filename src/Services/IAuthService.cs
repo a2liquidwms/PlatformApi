@@ -24,6 +24,10 @@ public interface IAuthService
     Task<IEnumerable<TenantDto>> GetAvailableTenants(string userId);
     Task<IEnumerable<SiteDto>> GetAvailableSites(string userId, Guid? tenantId = null);
     
+    // User permissions and roles query methods
+    Task<IEnumerable<string>> GetUserPermissionsAsync(string userId, Guid? tenantId = null, Guid? siteId = null);
+    Task<IEnumerable<RoleDto>> GetUserRolesAsync(string userId, Guid? tenantId = null, Guid? siteId = null);
+    
     // Email-related methods
 
     Task<bool> SendEmailConfirmationAsync(string email, string? subdomain = null, Guid? tenantId = null);

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using PlatformApi.Common.Auth;
+using PlatformApi.Common.Constants;
 using PlatformApi.Common.Tenant;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
@@ -17,15 +19,17 @@ public class AuthController : ControllerBase
     private readonly SignInManager<AuthUser> _signInManager;
     private readonly IConfiguration _configuration;
     private readonly TenantHelper _tenantHelper;
+    private readonly UserHelper _userHelper;
 
     public AuthController(ILogger<AuthController> logger, IAuthService authService,
-        SignInManager<AuthUser> signInManager, IConfiguration configuration, TenantHelper tenantHelper)
+        SignInManager<AuthUser> signInManager, IConfiguration configuration, TenantHelper tenantHelper, UserHelper userHelper)
     {
         _logger = logger;
         _authService = authService;
         _signInManager = signInManager;
         _configuration = configuration;
         _tenantHelper = tenantHelper;
+        _userHelper = userHelper;
     }
 
     [AllowAnonymous]
@@ -379,6 +383,58 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Error during invitation-based registration for {Email}", request.Email);
             return BadRequest(new { Message = "Registration failed" });
+        }
+    }
+    
+    [Authorize]
+    [HttpGet("my/permissions")]
+    public async Task<ActionResult<IEnumerable<string>>> GetMyPermissions([FromQuery] Guid? tenantId = null, [FromQuery] Guid? siteId = null)
+    {
+        try
+        {
+            var userId = _userHelper.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var permissions = await _authService.GetUserPermissionsAsync(userId, tenantId, siteId);
+            return Ok(permissions);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving permissions for user");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [Authorize]
+    [HttpGet("my/roles")]
+    public async Task<ActionResult<IEnumerable<RoleDto>>> GetMyRoles([FromQuery] Guid? tenantId = null, [FromQuery] Guid? siteId = null)
+    {
+        try
+        {
+            var userId = _userHelper.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var roles = await _authService.GetUserRolesAsync(userId, tenantId, siteId);
+            return Ok(roles);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving roles for user");
+            return StatusCode(500, "Internal server error");
         }
     }
 }

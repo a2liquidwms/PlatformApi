@@ -88,6 +88,7 @@ builder.Services.AddScoped<IBrandingService, BrandingService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailAwsSesService>();
 builder.Services.AddScoped<ISnsService, SnsService>();
+builder.Services.AddScoped<UserHelper>();
 
 
 // Add this before adding authentication in Program.cs

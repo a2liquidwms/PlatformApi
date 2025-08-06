@@ -444,13 +444,13 @@ public class AuthService : IAuthService
         return allClaims;
     }
 
-    private async Task<List<Claim>> GetContextualRoleClaims(AuthUser user, Guid? tenantId, Guid? siteId)
+    private async Task<List<Role>> GetContextualRoles(AuthUser user, Guid? tenantId, Guid? siteId, bool includePermissions = true)
     {
         var allRoles = new List<Role>();
         
         // Always get Internal and Default roles
-        var defaultRoles = await _userService.GetUserRoles(user.Id, RoleScope.Default);
-        var internalRoles = await _userService.GetUserRoles(user.Id, RoleScope.Internal);
+        var defaultRoles = await GetUserRolesWithPermissions(user.Id, RoleScope.Default, includePermissions: includePermissions);
+        var internalRoles = await GetUserRolesWithPermissions(user.Id, RoleScope.Internal, includePermissions: includePermissions);
         
         allRoles.AddRange(defaultRoles);
         allRoles.AddRange(internalRoles);
@@ -458,16 +458,48 @@ public class AuthService : IAuthService
         // Add tenant roles if tenant context exists
         if (tenantId.HasValue)
         {
-            var tenantRoles = await _userService.GetUserRoles(user.Id, RoleScope.Tenant, tenantId);
+            var tenantRoles = await GetUserRolesWithPermissions(user.Id, RoleScope.Tenant, tenantId, includePermissions: includePermissions);
             allRoles.AddRange(tenantRoles);
         }
         
         // Add site roles if site context exists
         if (siteId.HasValue && tenantId.HasValue)
         {
-            var siteRoles = await _userService.GetUserRoles(user.Id, RoleScope.Site, tenantId, siteId);
+            var siteRoles = await GetUserRolesWithPermissions(user.Id, RoleScope.Site, tenantId, siteId, includePermissions);
             allRoles.AddRange(siteRoles);
         }
+        
+        return allRoles;
+    }
+
+    private async Task<List<Role>> GetUserRolesWithPermissions(Guid userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null, bool includePermissions = true)
+    {
+        var query = _context.UserRoles
+            .Where(ura => ura.UserId == userId && ura.Scope == scope);
+            
+        if (tenantId.HasValue)
+            query = query.Where(ura => ura.TenantId == tenantId);
+            
+        if (siteId.HasValue)
+            query = query.Where(ura => ura.SiteId == siteId);
+            
+        var roleIds = await query.Select(ura => ura.RoleId).ToListAsync();
+        
+        var roleQuery = _context.Roles.Where(r => roleIds.Contains(r.Id));
+        
+        if (includePermissions)
+        {
+            roleQuery = roleQuery
+                .Include(r => r.RolePermissions)!
+                    .ThenInclude(rp => rp.Permission);
+        }
+        
+        return await roleQuery.ToListAsync();
+    }
+
+    private async Task<List<Claim>> GetContextualRoleClaims(AuthUser user, Guid? tenantId, Guid? siteId)
+    {
+        var allRoles = await GetContextualRoles(user, tenantId, siteId);
         
         // Create role claims
         var roleClaims = new List<Claim>();
@@ -583,6 +615,63 @@ public class AuthService : IAuthService
     {
         var userGuid = Guid.Parse(userId);
         return await _userService.GetUserSites(userGuid, tenantId);
+    }
+    
+    public async Task<IEnumerable<string>> GetUserPermissionsAsync(string userId, Guid? tenantId = null, Guid? siteId = null)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            throw new NotFoundException("User not found");
+        }
+
+        var allRoles = await GetContextualRoles(user, tenantId, siteId, includePermissions: true);
+        
+        // Extract permissions from roles
+        var permissions = new HashSet<string>();
+        foreach (var role in allRoles)
+        {
+            if (role.RolePermissions != null)
+            {
+                foreach (var rolePermission in role.RolePermissions)
+                {
+                    permissions.Add(rolePermission.Permission.Code);
+                }
+            }
+        }
+        
+        return permissions.ToList();
+    }
+    
+    public async Task<IEnumerable<RoleDto>> GetUserRolesAsync(string userId, Guid? tenantId = null, Guid? siteId = null)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            throw new NotFoundException("User not found");
+        }
+
+        var allRoles = await GetContextualRoles(user, tenantId, siteId, includePermissions: false);
+        
+        // Map to DTOs - roles without permissions
+        var roleDtos = new List<RoleDto>();
+        foreach (var role in allRoles)
+        {
+            var roleDto = new RoleDto
+            {
+                Id = role.Id.ToString(),
+                Name = role.Name,
+                Description = role.Description,
+                Scope = role.Scope,
+                TenantId = role.TenantId,
+                SiteId = role.SiteId,
+                IsSystemRole = role.IsSystemRole,
+                Permissions = new List<PermissionDto>() // Empty permissions list
+            };
+            roleDtos.Add(roleDto);
+        }
+        
+        return roleDtos;
     }
     
     public async Task<IdentityResult> RegisterViaInvitationAsync(RegisterViaInvitationRequest request)

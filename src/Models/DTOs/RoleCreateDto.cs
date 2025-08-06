@@ -14,5 +14,13 @@ public class RoleCreateDto : BaseObjectDto
     [StringLength(50)]
     public string? NormalizedName { get; set; }
     
+    public required RoleScope Scope { get; set; }
+    
+    public Guid? TenantId { get; set; }
+    
+    public Guid? SiteId { get; set; }
+    
+    public bool IsSystemRole { get; set; } = false;
+    
     public ICollection<PermissionDto>? Permissions { get; private set; } = new List<PermissionDto>();
 }
