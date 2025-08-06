@@ -30,4 +30,10 @@ public interface IUserService
     // User membership validation
     Task<bool> HasTenantAccess(Guid userId, Guid tenantId);
     Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId);
+    
+    // User invitation methods
+    Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, string invitedByUserId);
+    Task<UserInvitation?> ValidateInvitationTokenAsync(string token);
+    Task<UserExistenceCheckDto> CheckUserExistenceAsync(string email, Guid tenantId);
+    Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId);
 }

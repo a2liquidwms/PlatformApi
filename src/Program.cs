@@ -86,7 +86,6 @@ builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IBrandingService, BrandingService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IOldUserService, LegacyUserService>();
 builder.Services.AddScoped<IEmailService, EmailAwsSesService>();
 builder.Services.AddScoped<ISnsService, SnsService>();
 

@@ -585,12 +585,110 @@ public class AuthService : IAuthService
         return await _userService.GetUserSites(userGuid, tenantId);
     }
     
-    // TODO: Refactor this method to not depend on IOldUserService
     public async Task<IdentityResult> RegisterViaInvitationAsync(RegisterViaInvitationRequest request)
     {
-        // This method needs to be refactored to use IUserService instead of IOldUserService
-        await Task.CompletedTask; // Remove this when implementing
-        throw new NotImplementedException("RegisterViaInvitationAsync needs to be refactored to use new user service");
+        // Validate invitation token
+        var invitation = await _userService.ValidateInvitationTokenAsync(request.InvitationToken);
+        if (invitation == null)
+        {
+            return IdentityResult.Failed(new IdentityError 
+            { 
+                Code = "InvalidInvitation", 
+                Description = "Invalid or expired invitation token" 
+            });
+        }
+
+        // Verify email matches invitation
+        if (invitation.Email != request.Email)
+        {
+            return IdentityResult.Failed(new IdentityError
+            {
+                Code = "EmailMismatch",
+                Description = "Email does not match invitation"
+            });
+        }
+
+        // Check if user already exists
+        var existingUser = await _userManager.FindByEmailAsync(request.Email);
+        if (existingUser != null)
+        {
+            // User exists, just add them to the tenant with roles
+            await ProcessInvitationForExistingUser(existingUser, invitation);
+            
+            // Mark invitation as used
+            invitation.IsUsed = true;
+            _context.UserInvitations.Update(invitation);
+            await _uow.CompleteAsync();
+
+            return IdentityResult.Success;
+        }
+
+        // Create new user
+        var newUser = new AuthUser
+        {
+            UserName = request.Email,
+            Email = request.Email,
+            EmailConfirmed = true // Email is confirmed via invitation
+        };
+
+        var createResult = await _userManager.CreateAsync(newUser, request.Password);
+        if (!createResult.Succeeded)
+        {
+            return createResult;
+        }
+
+        // Process invitation for new user
+        await ProcessInvitationForExistingUser(newUser, invitation);
+
+        // Mark invitation as used
+        invitation.IsUsed = true;
+        _context.UserInvitations.Update(invitation);
+        await _uow.CompleteAsync();
+
+        // Send welcome email
+        var branding = await _brandingService.GetBrandingContextAsync(null, invitation.TenantId);
+        await _emailService.SendWelcomeEmailAsync(newUser.Email!, newUser.UserName ?? newUser.Email!, branding);
+
+        // Publish user-created message
+        var userCreatedMessage = new UserCreatedMessage
+        {
+            UserId = newUser.Id.ToString(),
+            Email = newUser.Email!
+        };
+        await _snsService.PublishUserCreatedAsync(userCreatedMessage);
+
+        return IdentityResult.Success;
+    }
+
+    private async Task ProcessInvitationForExistingUser(AuthUser user, UserInvitation invitation)
+    {
+        // Add user to tenant
+        var addUserToTenantDto = new AddUserToTenantDto
+        {
+            Email = user.Email!,
+            TenantId = invitation.TenantId
+        };
+        await _userService.AddUserToTenant(addUserToTenantDto);
+
+        // Add invited roles if any
+        if (!string.IsNullOrEmpty(invitation.InvitedRoles))
+        {
+            var roleIds = System.Text.Json.JsonSerializer.Deserialize<List<string>>(invitation.InvitedRoles);
+            if (roleIds != null && roleIds.Any())
+            {
+                foreach (var roleId in roleIds)
+                {
+                    var addRoleDto = new AddUserToRoleDto
+                    {
+                        Email = user.Email!,
+                        TenantId = invitation.TenantId,
+                        RoleId = roleId,
+                        Scope = RoleScope.Tenant
+                    };
+                    await _userService.AddUserToRole(addRoleDto, RoleScope.Tenant);
+                }
+            }
+        }
     }
 }
 

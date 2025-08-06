@@ -6,6 +6,8 @@ using PlatformApi.Common.Services;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PlatformApi.Services;
 
@@ -368,5 +370,104 @@ public class UserService : IUserService
     {
         return await _context.UserSites
             .AnyAsync(us => us.UserId == userId && us.SiteId == siteId && us.TenantId == tenantId && us.IsActive);
+    }
+
+    // User invitation methods
+    public async Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, string invitedByUserId)
+    {
+        // Check if user already exists
+        var existingUser = await GetUserByEmail(request.Email);
+        if (existingUser != null)
+        {
+            // Check if user is already in tenant
+            var hasAccess = await HasTenantAccess(existingUser.Id, request.TenantId);
+            if (hasAccess)
+            {
+                return new InvitationResponse
+                {
+                    Success = false,
+                    Message = "User is already a member of this tenant"
+                };
+            }
+        }
+
+        // Check if there's already a pending invitation
+        var existingInvitation = await _context.UserInvitations
+            .FirstOrDefaultAsync(ui => ui.Email == request.Email && 
+                                      ui.TenantId == request.TenantId && 
+                                      !ui.IsUsed && 
+                                      ui.ExpiresAt > DateTime.UtcNow);
+
+        if (existingInvitation != null)
+        {
+            return new InvitationResponse
+            {
+                Success = false,
+                Message = "User already has a pending invitation for this tenant"
+            };
+        }
+
+        // Generate invitation token
+        var tokenBytes = RandomNumberGenerator.GetBytes(32);
+        var invitationToken = Convert.ToBase64String(tokenBytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .Replace("=", "");
+
+        // Create invitation
+        var invitation = new UserInvitation
+        {
+            Email = request.Email,
+            TenantId = request.TenantId,
+            InvitationToken = invitationToken,
+            InvitedRoles = request.RoleIds != null && request.RoleIds.Any() 
+                ? System.Text.Json.JsonSerializer.Serialize(request.RoleIds) 
+                : null,
+            ExpiresAt = DateTime.UtcNow.AddDays(7), // 7 days expiration
+            CreatedBy = invitedByUserId
+        };
+
+        _context.UserInvitations.Add(invitation);
+        await _uow.CompleteAsync();
+
+        return new InvitationResponse
+        {
+            Success = true,
+            Message = "Invitation sent successfully",
+            InvitationId = invitation.Id
+        };
+    }
+
+    public async Task<UserInvitation?> ValidateInvitationTokenAsync(string token)
+    {
+        return await _context.UserInvitations
+            .FirstOrDefaultAsync(ui => ui.InvitationToken == token && 
+                                      !ui.IsUsed && 
+                                      ui.ExpiresAt > DateTime.UtcNow);
+    }
+
+    public async Task<UserExistenceCheckDto> CheckUserExistenceAsync(string email, Guid tenantId)
+    {
+        var user = await GetUserByEmail(email);
+        var result = new UserExistenceCheckDto { Email = email };
+
+        if (user != null)
+        {
+            // Get user's roles in this tenant
+            var roles = await GetUserRoles(user.Id, RoleScope.Tenant, tenantId);
+            result.Roles = _mapper.Map<List<RoleNoPermissionDto>>(roles);
+        }
+
+        return result;
+    }
+
+    public async Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId)
+    {
+        return await _context.UserInvitations
+            .Where(ui => ui.TenantId == tenantId && 
+                        !ui.IsUsed && 
+                        ui.ExpiresAt > DateTime.UtcNow)
+            .OrderByDescending(ui => ui.CreateDate)
+            .ToListAsync();
     }
 }
