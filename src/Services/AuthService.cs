@@ -501,20 +501,11 @@ public class AuthService : IAuthService
     {
         var allRoles = await GetContextualRoles(user, tenantId, siteId);
         
-        // Create role claims
+        // Create role claims - all roles in single array
         var roleClaims = new List<Claim>();
         var allRoleNames = allRoles.Select(r => r.Name).Distinct().ToArray();
         var roleJsonArray = JsonSerializer.Serialize(allRoleNames);
         roleClaims.Add(new Claim(CommonConstants.RolesClaim, roleJsonArray, JsonClaimValueTypes.JsonArray));
-        
-        // Add admin roles claim for system roles
-        var adminRoles = allRoles.Where(r => r.IsSystemRole).ToList();
-        if (adminRoles.Any())
-        {
-            var adminRoleNames = adminRoles.Select(r => r.Name).ToArray();
-            var adminJsonArray = JsonSerializer.Serialize(adminRoleNames);
-            roleClaims.Add(new Claim(CommonConstants.AdminRolesClaim, adminJsonArray, JsonClaimValueTypes.JsonArray));
-        }
 
         return roleClaims;
     }

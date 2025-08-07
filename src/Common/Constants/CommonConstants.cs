@@ -16,7 +16,5 @@ public static class CommonConstants
     
     public const string RolesClaim = "roles";
     
-    public const string AdminRolesClaim = "admin_roles";
-    
     public const string PermissionRoleCacheKey = "PermissionRoleCacheKey";
 }

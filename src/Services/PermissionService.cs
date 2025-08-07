@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NetStarterCommon.Core.Common.Models;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Services;
 using PlatformApi.Data;
@@ -281,6 +282,28 @@ public class PermissionService : IPermissionService
             _logger.LogError(ex, "Error removing permission {PermissionCode} from role {RoleId}", permissionCode, roleId);
             throw new ServiceException("Error removing permission from role");
         }
+    }
+
+    public async Task<List<CommonRolesPermission>> GetAllRolesForPermissionMiddleware()
+    {
+        var rawRolesData = await GetAllRoles(true);
+        
+        var commonRoles = new List<CommonRolesPermission>();
+        foreach (var authRole in rawRolesData)
+        {
+            var commonRole = new CommonRolesPermission
+            {
+                Id = authRole.Id.ToString(),
+                Name = authRole.Name,
+                Permissions = authRole.RolePermissions?.Select(rp => new CommonPermission
+                {
+                    Code = rp.Permission?.Code!
+                }).ToList() ?? new List<CommonPermission>()
+            };
+            commonRoles.Add(commonRole);
+        }
+        
+        return commonRoles;
     }
     
 }

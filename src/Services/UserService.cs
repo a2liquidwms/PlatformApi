@@ -192,6 +192,9 @@ public class UserService : IUserService
         if (role == null) throw new NotFoundException("Role not found");
         if (role.Scope != dto.Scope) throw new InvalidDataException("Role scope mismatch");
 
+        // Ensure user has proper tenant/site associations based on role scope
+        await EnsureUserAssociations(dto.Email, dto.Scope, dto.TenantId, dto.SiteId);
+
         // Check if assignment already exists
         var existingAssignment = await _context.UserRoles
             .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
@@ -228,6 +231,9 @@ public class UserService : IUserService
 
         // Ensure the DTO scope matches expected scope
         if (dto.Scope != expectedScope) throw new InvalidDataException($"DTO scope must be {expectedScope}");
+
+        // Ensure user has proper tenant/site associations based on role scope
+        await EnsureUserAssociations(dto.Email, expectedScope, dto.TenantId, dto.SiteId);
 
         // Check if assignment already exists
         var existingAssignment = await _context.UserRoles
@@ -469,5 +475,64 @@ public class UserService : IUserService
                         ui.ExpiresAt > DateTime.UtcNow)
             .OrderByDescending(ui => ui.CreateDate)
             .ToListAsync();
+    }
+
+    private async Task EnsureUserAssociations(string email, RoleScope scope, Guid? tenantId, Guid? siteId)
+    {
+        var user = await GetUserByEmail(email);
+        if (user == null) return;
+
+        switch (scope)
+        {
+            case RoleScope.Tenant:
+                if (tenantId.HasValue)
+                    await EnsureUserTenantAssociation(user.Id, tenantId.Value);
+                break;
+
+            case RoleScope.Site:
+                if (tenantId.HasValue && siteId.HasValue)
+                {
+                    await EnsureUserTenantAssociation(user.Id, tenantId.Value);
+                    await EnsureUserSiteAssociation(user.Id, siteId.Value, tenantId.Value);
+                }
+                break;
+
+            default:
+                // Internal and Default roles don't require tenant/site associations
+                break;
+        }
+    }
+
+    private async Task EnsureUserTenantAssociation(Guid userId, Guid tenantId)
+    {
+        var existingUserTenant = await _context.UserTenants
+            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TenantId == tenantId);
+
+        if (existingUserTenant == null)
+        {
+            var userTenant = new UserTenant
+            {
+                UserId = userId,
+                TenantId = tenantId
+            };
+            await _context.UserTenants.AddAsync(userTenant);
+        }
+    }
+
+    private async Task EnsureUserSiteAssociation(Guid userId, Guid siteId, Guid tenantId)
+    {
+        var existingUserSite = await _context.UserSites
+            .FirstOrDefaultAsync(us => us.UserId == userId && us.SiteId == siteId);
+
+        if (existingUserSite == null)
+        {
+            var userSite = new UserSite
+            {
+                UserId = userId,
+                SiteId = siteId,
+                TenantId = tenantId
+            };
+            await _context.UserSites.AddAsync(userSite);
+        }
     }
 }

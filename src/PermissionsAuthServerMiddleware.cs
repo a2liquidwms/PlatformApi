@@ -70,7 +70,7 @@ public class PermissionsAuthServerMiddleware
     
         // Debug logging to see what's actually in the claims
         var allClaims = context.User.Claims
-            .Where(c =>  c.Type == ClaimTypes.Role ||  c.Type == CommonConstants.RolesClaim || c.Type == CommonConstants.AdminRolesClaim)
+            .Where(c =>  c.Type == ClaimTypes.Role ||  c.Type == CommonConstants.RolesClaim)
             .ToList();
         
         foreach (var claim in allClaims)
@@ -117,28 +117,10 @@ public class PermissionsAuthServerMiddleware
         
         try
         {
-
             using (var scope = _serviceScopeFactory.CreateScope())
             {
-                var allRoles = new List<CommonRolesPermission>();
                 var permissionService = scope.ServiceProvider.GetRequiredService<IPermissionService>();
-                var rawRolesData = await permissionService.GetAllRoles(true);
-
-                foreach (var authRole in rawRolesData)
-                {
-                    var commonRole = new CommonRolesPermission
-                    {
-                        Id = authRole.Id.ToString(),
-                        Name = authRole.Name,
-                        Permissions = authRole.RolePermissions?.Select(rp => new CommonPermission
-                        {
-                            Code = rp.Permission?.Code!,
-                            // Add other Permission properties as needed
-                        }).ToList() ?? new List<CommonPermission>(),
-                    };
-
-                    allRoles.Add(commonRole);
-                }
+                var allRoles = await permissionService.GetAllRolesForPermissionMiddleware();
 
                 if (allRoles.Any())
                 {

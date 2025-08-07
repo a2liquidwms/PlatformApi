@@ -52,7 +52,7 @@ public class PermissionsMiddleware
     
         // Debug logging to see what's actually in the claims
         var allClaims = context.User.Claims
-            .Where(c => c.Type == CommonConstants.RolesClaim || c.Type == CommonConstants.AdminRolesClaim)
+            .Where(c => c.Type == CommonConstants.RolesClaim)
             .ToList();
     
         // Try different approaches based on what we see

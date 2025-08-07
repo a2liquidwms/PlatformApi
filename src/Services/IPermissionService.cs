@@ -1,3 +1,4 @@
+using NetStarterCommon.Core.Common.Models;
 using PlatformApi.Models;
 
 namespace PlatformApi.Services;
@@ -19,4 +20,5 @@ public interface IPermissionService
     Task<Role> AddPermissionToRole(string roleId, string permissionCode);
     Task<Role> RemovePermissionFromRole(string roleId, string permissionCode);
     Task<int> AddPermissionsMulti(Permission[] objs);
+    Task<List<CommonRolesPermission>> GetAllRolesForPermissionMiddleware();
 }
