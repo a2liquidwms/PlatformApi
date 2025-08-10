@@ -14,26 +14,26 @@ public interface IAuthService
     //Task<AuthTokenBundle> ExternalLoginCallback(Guid? tenantId, Guid? siteId = null);
     //Task<bool> LinkProvider(ExternalLoginRequest request, ClaimsPrincipal user);
     //Task<bool> UnlinkProvider(UnlinkProviderRequest request, ClaimsPrincipal user);
-    Task<AuthTokenBundle> RefreshToken(string userId,string refreshToken);
+    Task<AuthTokenBundle> RefreshToken(Guid userId,string refreshToken);
     
     // Tenant/Site switching methods
-    Task<AuthTokenBundle> SwitchTenant(string userId, Guid tenantId);
-    Task<AuthTokenBundle> SwitchSite(string userId, Guid siteId);
+    Task<AuthTokenBundle> SwitchTenant(Guid userId, Guid tenantId);
+    Task<AuthTokenBundle> SwitchSite(Guid userId, Guid siteId);
     
     // Availability query methods
-    Task<IEnumerable<TenantDto>> GetAvailableTenants(string userId);
-    Task<IEnumerable<SiteDto>> GetAvailableSites(string userId, Guid? tenantId = null);
+    Task<IEnumerable<TenantDto>> GetAvailableTenants(Guid userId);
+    Task<IEnumerable<SiteDto>> GetAvailableSites(Guid userId, Guid? tenantId = null);
     
     // User permissions and roles query methods
-    Task<IEnumerable<string>> GetUserPermissionsAsync(string userId, Guid? tenantId = null, Guid? siteId = null);
-    Task<IEnumerable<RoleDto>> GetUserRolesAsync(string userId, Guid? tenantId = null, Guid? siteId = null);
+    Task<IEnumerable<string>> GetUserPermissionsAsync(Guid userId, Guid? tenantId = null, Guid? siteId = null);
+    Task<IEnumerable<RoleDto>> GetUserRolesAsync(Guid userId, Guid? tenantId = null, Guid? siteId = null);
     
     // Email-related methods
 
     Task<bool> SendEmailConfirmationAsync(string email, string? subdomain = null, Guid? tenantId = null);
-    Task<bool> ConfirmEmailAsync(string userId, string token, string? subdomain = null, Guid? tenantId = null);
+    Task<bool> ConfirmEmailAsync(Guid userId, string token, string? subdomain = null, Guid? tenantId = null);
     Task<bool> SendPasswordResetAsync(string email, string? subdomain = null, Guid? tenantId = null);
-    Task<bool> ResetPasswordAsync(string userId, string token, string newPassword, string? subdomain = null, Guid? tenantId = null);
+    Task<bool> ResetPasswordAsync(Guid userId, string token, string newPassword, string? subdomain = null, Guid? tenantId = null);
     
     // Invitation-based registration
     Task<IdentityResult> RegisterViaInvitationAsync(RegisterViaInvitationRequest request);

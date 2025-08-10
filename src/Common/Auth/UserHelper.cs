@@ -20,9 +20,22 @@ public class UserHelper
         return _httpContextAccessor.HttpContext?.User.FindFirstValue(JwtRegisteredClaimNames.Email);
     }
 
-    public string? GetCurrentUserId()
+    public Guid GetCurrentUserId()
     {
-        return _httpContextAccessor.HttpContext?.User.FindFirstValue(CommonConstants.ClaimUserId);
+        var userIdString = _httpContextAccessor.HttpContext?.User.FindFirstValue(CommonConstants.ClaimUserId);
+        
+        if (string.IsNullOrEmpty(userIdString))
+        {
+            throw new UnauthorizedAccessException("User ID not found in token claims");
+        }
+        
+        if (!Guid.TryParse(userIdString, out var userId))
+        {
+            _logger.LogWarning("Invalid User ID format in claims: {UserId}", userIdString);
+            throw new InvalidDataException("Invalid User ID format in claims");
+        }
+        
+        return userId;
     }
 
     public bool IsUserAuthenticated()

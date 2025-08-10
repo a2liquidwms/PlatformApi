@@ -1,5 +1,7 @@
 using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PlatformApi.Common.Auth;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Permissions;
 using PlatformApi.Common.Tenant;
@@ -17,18 +19,27 @@ public class UserController : ControllerBase
     private readonly ILogger<UserController> _logger;
     private readonly IMapper _mapper;
     private readonly IUserService _userService;
+    private readonly ITenantService _tenantService;
     private readonly TenantHelper _tenantHelper;
+    private readonly UserHelper _userHelper;
+    private readonly PermissionHelper _permissionHelper;
 
     public UserController(
         ILogger<UserController> logger,
         IMapper mapper,
         IUserService userService,
-        TenantHelper tenantHelper)
+        ITenantService tenantService,
+        TenantHelper tenantHelper,
+        UserHelper userHelper,
+        PermissionHelper permissionHelper)
     {
         _logger = logger;
         _mapper = mapper;
         _userService = userService;
+        _tenantService = tenantService;
         _tenantHelper = tenantHelper;
+        _userHelper = userHelper;
+        _permissionHelper = permissionHelper;
     }
 
     // Get all tenant users
@@ -202,6 +213,69 @@ public class UserController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error removing user from role");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Get current user's tenants
+    [Authorize]
+    [HttpGet("my/tenants")]
+    public async Task<ActionResult<IEnumerable<TenantDto>>> GetMyTenants()
+    {
+        try
+        {
+            if (_permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants))
+            {
+                // User has ManageTenants permission - return all tenants
+                var allTenants = await _tenantService.GetAll();
+                var allTenantsDto = _mapper.Map<IEnumerable<TenantDto>>(allTenants);
+                return Ok(allTenantsDto);
+            }
+            
+            // User doesn't have ManageTenants permission - return only their tenants
+            var userId = _userHelper.GetCurrentUserId();
+            var tenants = await _userService.GetUserTenants(userId);
+            return Ok(tenants);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting current user's tenants");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Get current user's sites
+    [RequireTenantAccess]
+    [HttpGet("my/sites")]
+    public async Task<ActionResult<IEnumerable<SiteDto>>> GetMySites()
+    {
+        try
+        {
+            var userId = _userHelper.GetCurrentUserId();
+            var tenantId = _tenantHelper.GetTenantId();
+            var sites = await _userService.GetUserSites(userId, tenantId);
+            return Ok(sites);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            var tenantId = _tenantHelper.GetTenantId();
+            _logger.LogError(ex, "Error getting current user's sites for tenant {TenantId}", tenantId);
             return StatusCode(500, "Internal server error");
         }
     }

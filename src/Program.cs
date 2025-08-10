@@ -89,7 +89,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailAwsSesService>();
 builder.Services.AddScoped<ISnsService, SnsService>();
 builder.Services.AddScoped<UserHelper>();
-
+builder.Services.AddScoped<PermissionHelper>();
 
 // Add this before adding authentication in Program.cs
 builder.Services.Configure<CookiePolicyOptions>(options =>

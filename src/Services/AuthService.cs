@@ -229,17 +229,17 @@ public class AuthService : IAuthService
     //     return true;
     // }
 
-    public async Task<AuthTokenBundle> RefreshToken(string userId, string refreshToken)
+    public async Task<AuthTokenBundle> RefreshToken(Guid userId, string refreshToken)
     {
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user == null || user.Id.ToString() != userId)
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null || user.Id != userId)
         {
             _logger.LogError("User Not Match Refresh Token");
             throw new UnauthorizedAccessException();
         }
         
         var oldRefreshToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == refreshToken.Trim() && rt.UserId == Guid.Parse(userId));
+            .FirstOrDefaultAsync(rt => rt.Token == refreshToken.Trim() && rt.UserId == userId);
         
         if (oldRefreshToken == null || oldRefreshToken.IsRevoked || oldRefreshToken.Expires < DateTime.UtcNow)
         {
@@ -248,7 +248,7 @@ public class AuthService : IAuthService
         }
         
         //revoke all other refresh tokens
-        var otherRefreshToken = _context.RefreshTokens.Where(rt => rt.UserId == Guid.Parse(userId) && !rt.IsRevoked);
+        var otherRefreshToken = _context.RefreshTokens.Where(rt => rt.UserId == userId && !rt.IsRevoked);
 
         foreach (var token in otherRefreshToken)
         {
@@ -291,9 +291,9 @@ public class AuthService : IAuthService
         return await _emailService.SendEmailConfirmationAsync(user.Email!, confirmationUrl, user.UserName ?? user.Email!, branding);
     }
 
-    public async Task<bool> ConfirmEmailAsync(string userId, string token, string? subdomain = null, Guid? tenantId = null)
+    public async Task<bool> ConfirmEmailAsync(Guid userId, string token, string? subdomain = null, Guid? tenantId = null)
     {
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
             _logger.LogWarning("Attempted to confirm email for non-existent user: {UserId}", userId);
@@ -342,9 +342,9 @@ public class AuthService : IAuthService
         return await _emailService.SendPasswordResetAsync(user.Email!, resetUrl, user.UserName ?? user.Email!, branding);
     }
 
-    public async Task<bool> ResetPasswordAsync(string userId, string token, string newPassword, string? subdomain = null, Guid? tenantId = null)
+    public async Task<bool> ResetPasswordAsync(Guid userId, string token, string newPassword, string? subdomain = null, Guid? tenantId = null)
     {
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
             _logger.LogWarning("Attempted to reset password for non-existent user: {UserId}", userId);
@@ -534,9 +534,9 @@ public class AuthService : IAuthService
         return refreshToken.Token;
     }
 
-    public async Task<AuthTokenBundle> SwitchTenant(string userId, Guid tenantId)
+    public async Task<AuthTokenBundle> SwitchTenant(Guid userId, Guid tenantId)
     {
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
             throw new NotFoundException("User not found");
@@ -563,9 +563,9 @@ public class AuthService : IAuthService
         return tokenBundle;
     }
 
-    public async Task<AuthTokenBundle> SwitchSite(string userId, Guid siteId)
+    public async Task<AuthTokenBundle> SwitchSite(Guid userId, Guid siteId)
     {
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
             throw new NotFoundException("User not found");
@@ -596,21 +596,19 @@ public class AuthService : IAuthService
         return tokenBundle;
     }
 
-    public async Task<IEnumerable<TenantDto>> GetAvailableTenants(string userId)
+    public async Task<IEnumerable<TenantDto>> GetAvailableTenants(Guid userId)
     {
-        var userGuid = Guid.Parse(userId);
-        return await _userService.GetUserTenants(userGuid);
+        return await _userService.GetUserTenants(userId);
     }
 
-    public async Task<IEnumerable<SiteDto>> GetAvailableSites(string userId, Guid? tenantId = null)
+    public async Task<IEnumerable<SiteDto>> GetAvailableSites(Guid userId, Guid? tenantId = null)
     {
-        var userGuid = Guid.Parse(userId);
-        return await _userService.GetUserSites(userGuid, tenantId);
+        return await _userService.GetUserSites(userId, tenantId);
     }
     
-    public async Task<IEnumerable<string>> GetUserPermissionsAsync(string userId, Guid? tenantId = null, Guid? siteId = null)
+    public async Task<IEnumerable<string>> GetUserPermissionsAsync(Guid userId, Guid? tenantId = null, Guid? siteId = null)
     {
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
             throw new NotFoundException("User not found");
@@ -634,9 +632,9 @@ public class AuthService : IAuthService
         return permissions.ToList();
     }
     
-    public async Task<IEnumerable<RoleDto>> GetUserRolesAsync(string userId, Guid? tenantId = null, Guid? siteId = null)
+    public async Task<IEnumerable<RoleDto>> GetUserRolesAsync(Guid userId, Guid? tenantId = null, Guid? siteId = null)
     {
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
             throw new NotFoundException("User not found");

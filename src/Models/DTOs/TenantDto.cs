@@ -3,7 +3,7 @@ using PlatformApi.Models.BaseModels;
 
 namespace PlatformApi.Models.DTOs;
 
-public class TenantDto : BaseObjectDto
+public class TenantDto
 {
     public Guid? Id { get; set; }
 

@@ -1,8 +1,7 @@
-using System.Security.Claims;
-using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
-using NetStarterCommon.Core.Common.Models;
+using PlatformApi.Common.Auth;
 using PlatformApi.Common.Constants;
+using PlatformApi.Services;
 
 namespace PlatformApi.Common.Tenant;
 
@@ -17,16 +16,22 @@ public class TenantAccessAuthHandler : AuthorizationHandler<TenantAccessRequirem
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<TenantAccessAuthHandler> _logger;
+    private readonly UserHelper _userHelper;
+    private readonly ITenantService _tenantService;
 
     public TenantAccessAuthHandler(
         IHttpContextAccessor httpContextAccessor,
-        ILogger<TenantAccessAuthHandler> logger)
+        ILogger<TenantAccessAuthHandler> logger,
+        UserHelper userHelper,
+        ITenantService tenantService)
     {
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _userHelper = userHelper ?? throw new ArgumentNullException(nameof(userHelper));
+        _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
     }
 
-    protected override Task HandleRequirementAsync(
+    protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
         TenantAccessRequirement requirement)
     {
@@ -37,7 +42,7 @@ public class TenantAccessAuthHandler : AuthorizationHandler<TenantAccessRequirem
         {
             _logger.LogWarning("TenantCheck - User is not authenticated");
             context.Fail(new AuthorizationFailureReason(this, "User is not authenticated"));
-            return Task.CompletedTask;
+            return;
         }
 
         // Get tenant from context (set by middleware)
@@ -46,54 +51,22 @@ public class TenantAccessAuthHandler : AuthorizationHandler<TenantAccessRequirem
         {
             _logger.LogWarning("No tenant set");
             context.Fail(new AuthorizationFailureReason(this, "No tenant set"));
-            return Task.CompletedTask;
+            return;
         }
 
-        // Check if user has access to this tenant via JWT claims
-        if (UserHasAccessToTenant(context.User, tenantId))
+        // Check if user has access to this tenant via database lookup
+        var userId = _userHelper.GetCurrentUserId();
+        var hasAccess = await _tenantService.HasTenantAccess(userId, tenantId);
+        
+        if (hasAccess)
         {
             context.Succeed(requirement);
         }
         else
         {
-            _logger.LogWarning("User {UserId} does not have access to tenant {TenantId}",
-                context.User.FindFirst(CommonConstants.ClaimUserId)?.Value, tenantId);
+            _logger.LogWarning("User {UserId} does not have access to tenant {TenantId}", userId, tenantId);
             context.Fail(new AuthorizationFailureReason(this, "No Tenant Access"));
         }
-
-        return Task.CompletedTask;
     }
 
-    private bool UserHasAccessToTenant(ClaimsPrincipal user, Guid tenantId)
-    {
-        // Get all claims for the tenants
-        var tenantClaims = user.Claims.Where(c => c.Type == CommonConstants.TenantsClaim);
-        foreach (var claim in tenantClaims)
-        {
-            try
-            {
-                // Try deserializing the claim value as a JSON array of tenant objects
-                var tenants = JsonSerializer.Deserialize<List<TenantInfo>>(claim.Value);
-                if (tenants != null && tenants.Any(t =>
-                        string.Equals(t.Id, tenantId)))
-                {
-                    return true;
-                }
-            }
-            catch (JsonException)
-            {
-                var claimText = JsonSerializer.Deserialize<TenantInfo>(claim.Value);
-                if (claimText?.Id != null)
-                {
-                    // Fallback: if the claim isn't JSON, compare the raw string value
-                    if (claimText.Id.Equals(tenantId))
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
 }

@@ -13,4 +13,9 @@ public interface ITenantService
     Task<TenantConfig?> GetTenantConfigById(Guid tenantId);
     Task<TenantConfig?> GetTenantConfigBySubdomain(string subdomain);
     Task<bool> UpdateTenantConfig(Guid tenantId, TenantConfig obj);
+    
+    // Tenant access methods
+    Task<bool> HasTenantAccess(Guid userId, Guid tenantId);
+    Task<List<Guid>> GetUserTenants(Guid userId);
+    void InvalidateUserCache(Guid userId);
 }

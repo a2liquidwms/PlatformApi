@@ -158,7 +158,7 @@ public class AuthController : ControllerBase
             {
                 tenantNullable = tenantId;
             }
-            var result = await _authService.ConfirmEmailAsync(request.UserId.ToString(), request.Token, null, tenantNullable);
+            var result = await _authService.ConfirmEmailAsync(request.UserId, request.Token, null, tenantNullable);
             
             if (result)
             {
@@ -239,7 +239,7 @@ public class AuthController : ControllerBase
             {
                 tenantNullable = tenantId;
             }
-            var result = await _authService.ResetPasswordAsync(request.UserId.ToString(), request.Token, request.NewPassword, null, tenantNullable);
+            var result = await _authService.ResetPasswordAsync(request.UserId, request.Token, request.NewPassword, null, tenantNullable);
             
             if (result)
             {
@@ -354,7 +354,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var tokenBundle = await _authService.RefreshToken(request.UserId.ToString(), request.RefreshToken);
+            var tokenBundle = await _authService.RefreshToken(request.UserId, request.RefreshToken);
             return Ok(tokenBundle);
         }
         catch (Exception)
@@ -393,13 +393,16 @@ public class AuthController : ControllerBase
         try
         {
             var userId = _userHelper.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized("User ID not found in token");
-            }
-
             var permissions = await _authService.GetUserPermissionsAsync(userId, tenantId, siteId);
             return Ok(permissions);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
         }
         catch (NotFoundException ex)
         {
@@ -419,13 +422,16 @@ public class AuthController : ControllerBase
         try
         {
             var userId = _userHelper.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized("User ID not found in token");
-            }
-
             var roles = await _authService.GetUserRolesAsync(userId, tenantId, siteId);
             return Ok(roles);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
         }
         catch (NotFoundException ex)
         {
