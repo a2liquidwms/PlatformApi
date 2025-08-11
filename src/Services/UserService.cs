@@ -336,12 +336,17 @@ public class UserService : IUserService
         return allPermissions!;
     }
 
-    public async Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId)
+    public async Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId, bool forLogin = false)
     {
-        // System admins always get fresh data - no caching (so they see new tenants immediately)
-        if (_permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants))
+        // Check if user is system admin - use appropriate method based on context
+        bool isSystemAdmin = forLogin 
+            ? await IsSystemAdminByRoles(userId)
+            : _permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants);
+
+        if (isSystemAdmin)
         {
-            _logger.LogDebug("System admin access - returning fresh data for all tenants, user {UserId}", userId);
+            var logContext = forLogin ? "login" : "normal";
+            _logger.LogDebug("System admin access ({Context}) - returning fresh data for all tenants, user {UserId}", logContext, userId);
             var allTenants = await _context.Tenants
                 .Select(t => new TenantDto 
                 { 
@@ -354,7 +359,25 @@ public class UserService : IUserService
             return allTenants;
         }
         
-        // Regular users get cached results for performance
+        // For login, skip caching and return fresh data
+        if (forLogin)
+        {
+            _logger.LogDebug("Regular user login - querying assigned tenants, user {UserId}", userId);
+            var tenants = await _context.UserTenants
+                .Where(ut => ut.UserId == userId)
+                .Include(ut => ut.Tenant)
+                .Select(ut => new TenantDto 
+                { 
+                    Id = ut.Tenant!.Id, 
+                    Name = ut.Tenant!.Name, 
+                    Code = ut.Tenant!.Code, 
+                    SubDomain = ut.Tenant!.SubDomain 
+                })
+                .ToListAsync();
+            return tenants;
+        }
+
+        // Regular users get cached results for performance (post-authentication)
         var generationKey = "user_tenant_cache_generation";
         var cacheKey = $"user_tenants_{userId}";
         var userCacheKey = $"user_tenants_gen_{userId}";
@@ -372,7 +395,7 @@ public class UserService : IUserService
         _logger.LogDebug("Cache miss for user tenants, querying database: {UserId}", userId);
         
         // Get all tenants where user is explicitly assigned via UserTenant table
-        var tenants = await _context.UserTenants
+        var userTenants = await _context.UserTenants
             .Where(ut => ut.UserId == userId)
             .Include(ut => ut.Tenant)
             .Select(ut => new TenantDto 
@@ -398,47 +421,45 @@ public class UserService : IUserService
             _cache.Set(generationKey, currentGeneration);
         }
 
-        _cache.Set(cacheKey, tenants, cacheOptions);
+        _cache.Set(cacheKey, userTenants, cacheOptions);
         _cache.Set(userCacheKey, currentGeneration, cacheOptions);
-        _logger.LogDebug("Cached {TenantCount} tenants for user {UserId} with generation {Generation}", tenants.Count(), userId, currentGeneration);
+        _logger.LogDebug("Cached {TenantCount} tenants for user {UserId} with generation {Generation}", userTenants.Count(), userId, currentGeneration);
             
-        return tenants;
+        return userTenants;
     }
 
-    public async Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid? tenantId = null)
+    public async Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid tenantId, bool forLogin = false)
     {
-        // System admins get all sites (optionally filtered by tenant)
-        if (_permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants))
-        {
-            IQueryable<Site> adminQuery = _context.Sites.Where(s => s.IsActive);
-            
-            if (tenantId.HasValue)
-            {
-                adminQuery = adminQuery.Where(s => s.TenantId == tenantId.Value);
-            }
+        // Check if user is system admin - use appropriate method based on context
+        bool isSystemAdmin = forLogin 
+            ? await IsSystemAdminByRoles(userId)
+            : _permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants);
 
-            var allSites = await adminQuery.Select(s => new SiteDto 
-            { 
-                Id = s.Id, 
-                Code = s.Code,
-                Name = s.Name, 
-                TenantId = s.TenantId,
-                IsActive = s.IsActive 
-            }).ToListAsync();
+        if (isSystemAdmin)
+        {
+            var logContext = forLogin ? "login" : "normal";
+            _logger.LogDebug("System admin access ({Context}) - returning all sites for tenant {TenantId}, user {UserId}", logContext, tenantId, userId);
+            var allSites = await _context.Sites
+                .Where(s => s.IsActive && s.TenantId == tenantId)
+                .Select(s => new SiteDto 
+                { 
+                    Id = s.Id, 
+                    Code = s.Code,
+                    Name = s.Name, 
+                    TenantId = s.TenantId,
+                    IsActive = s.IsActive 
+                }).ToListAsync();
             
             return allSites;
         }
 
-        // Regular users get their assigned sites (site must be active)
-        IQueryable<UserSite> query = _context.UserSites
-            .Where(us => us.UserId == userId && us.Site!.IsActive);
-
-        if (tenantId.HasValue)
-        {
-            query = query.Where(us => us.TenantId == tenantId.Value);
-        }
-
-        var userSites = await query.Include(us => us.Site).ToListAsync();
+        // Regular users get their assigned sites within the specified tenant (site must be active)
+        var logContextRegular = forLogin ? "login" : "normal";
+        _logger.LogDebug("Regular user access ({Context}) - querying assigned sites for tenant {TenantId}, user {UserId}", logContextRegular, tenantId, userId);
+        var userSites = await _context.UserSites
+            .Where(us => us.UserId == userId && us.TenantId == tenantId && us.Site!.IsActive)
+            .Include(us => us.Site)
+            .ToListAsync();
         
         return userSites.Where(us => us.Site != null).Select(us => new SiteDto 
         { 
@@ -450,18 +471,18 @@ public class UserService : IUserService
         });
     }
 
-    public async Task<bool> HasTenantAccess(Guid userId, Guid tenantId)
+    public async Task<bool> HasTenantAccess(Guid userId, Guid tenantId, bool forLogin = false)
     {
         // Leverage GetUserTenants which already handles system admin permissions and caching
-        var tenantDtos = await GetUserTenants(userId);
+        var tenantDtos = await GetUserTenants(userId, forLogin);
         var tenantIds = tenantDtos.Where(t => t.Id.HasValue).Select(t => t.Id!.Value);
         return tenantIds.Contains(tenantId);
     }
 
-    public async Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId)
+    public async Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId, bool forLogin = false)
     {
         // Leverage GetUserSites which already handles system admin permissions  
-        var siteDtos = await GetUserSites(userId, tenantId);
+        var siteDtos = await GetUserSites(userId, tenantId, forLogin);
         return siteDtos.Any(s => s.Id == siteId);
     }
 
@@ -650,5 +671,22 @@ public class UserService : IUserService
             };
             await _context.UserSites.AddAsync(userSite);
         }
+    }
+
+
+    private async Task<bool> IsSystemAdminByRoles(Guid userId)
+    {
+        // Query database directly to check if user has system admin permission
+        // This bypasses the permission middleware that isn't available during login
+        var hasSystemAdminPermission = await _context.UserRoles
+            .Where(ur => ur.UserId == userId)
+            .Include(ur => ur.Role)
+            .ThenInclude(r => r!.RolePermissions!)
+            .ThenInclude(rp => rp.Permission)
+            .AnyAsync(ur => ur.Role!.RolePermissions!.Any(rp => 
+                               rp.Permission!.Code == RolePermissionConstants.SysAdminManageTenants));
+
+        _logger.LogDebug("Direct role check for system admin permission: {HasPermission} for user {UserId}", hasSystemAdminPermission, userId);
+        return hasSystemAdminPermission;
     }
 }

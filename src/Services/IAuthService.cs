@@ -22,7 +22,7 @@ public interface IAuthService
     
     // Availability query methods
     Task<IEnumerable<TenantDto>> GetAvailableTenants(Guid userId);
-    Task<IEnumerable<SiteDto>> GetAvailableSites(Guid userId, Guid? tenantId = null);
+    Task<IEnumerable<SiteDto>> GetAvailableSites(Guid userId, Guid tenantId);
     
     // User permissions and roles query methods
     Task<IEnumerable<string>> GetUserPermissionsAsync(Guid userId, Guid? tenantId = null, Guid? siteId = null);

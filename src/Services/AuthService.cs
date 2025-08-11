@@ -113,8 +113,8 @@ public class AuthService : IAuthService
 
     private async Task ValidateUserTenantAccess(AuthUser user, Guid tenantId)
     {
-        // Check for tenant membership using UserService
-        var hasAccess = await _userService.HasTenantAccess(user.Id, tenantId);
+        // Check for tenant membership using UserService with forLogin=true to bypass permission middleware
+        var hasAccess = await _userService.HasTenantAccess(user.Id, tenantId, forLogin: true);
         
         if (!hasAccess)
         {
@@ -124,7 +124,8 @@ public class AuthService : IAuthService
 
     private async Task ValidateUserSiteAccess(AuthUser user, Guid siteId, Guid tenantId)
     {
-        var hasAccess = await _userService.HasSiteAccess(user.Id, siteId, tenantId);
+        // Check for site membership using UserService with forLogin=true to bypass permission middleware
+        var hasAccess = await _userService.HasSiteAccess(user.Id, siteId, tenantId, forLogin: true);
         
         if (!hasAccess)
         {
@@ -598,12 +599,12 @@ public class AuthService : IAuthService
 
     public async Task<IEnumerable<TenantDto>> GetAvailableTenants(Guid userId)
     {
-        return await _userService.GetUserTenants(userId);
+        return await _userService.GetUserTenants(userId, forLogin: true);
     }
 
-    public async Task<IEnumerable<SiteDto>> GetAvailableSites(Guid userId, Guid? tenantId = null)
+    public async Task<IEnumerable<SiteDto>> GetAvailableSites(Guid userId, Guid tenantId)
     {
-        return await _userService.GetUserSites(userId, tenantId);
+        return await _userService.GetUserSites(userId, tenantId, forLogin: true);
     }
     
     public async Task<IEnumerable<string>> GetUserPermissionsAsync(Guid userId, Guid? tenantId = null, Guid? siteId = null)

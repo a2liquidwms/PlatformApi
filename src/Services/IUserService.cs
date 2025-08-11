@@ -24,12 +24,12 @@ public interface IUserService
     Task<IEnumerable<Permission>?> GetUserPermissions(Guid userId, Guid? tenantId = null, Guid? siteId = null);
     
     // User membership lookups
-    Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId);
-    Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid? tenantId = null);
+    Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId, bool forLogin = false);
+    Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid tenantId, bool forLogin = false);
     
     // User membership validation
-    Task<bool> HasTenantAccess(Guid userId, Guid tenantId);
-    Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId);
+    Task<bool> HasTenantAccess(Guid userId, Guid tenantId, bool forLogin = false);
+    Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId, bool forLogin = false);
     
     // User invitation methods
     Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, string invitedByUserId);
