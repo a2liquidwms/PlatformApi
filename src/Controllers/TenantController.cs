@@ -182,4 +182,89 @@ public class TenantController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+
+    [RequirePermission(RolePermissionConstants.SystemAdminManageSites)]
+    [HttpGet("sites/{id}")]
+    public async Task<ActionResult<SiteDto>> GetSiteById(Guid id)
+    {
+        try
+        {
+            var site = await _tenantService.GetSiteById(id);
+            if (site == null)
+            {
+                return NotFound();
+            }
+            return Ok(_mapper.Map<SiteDto>(site));
+        }
+        catch (NotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    [RequirePermission(RolePermissionConstants.SystemAdminManageSites)]
+    [HttpGet("{tenantId}/sites")]
+    public async Task<ActionResult<IEnumerable<SiteDto>>> GetSitesByTenantId(Guid tenantId)
+    {
+        var result = await _tenantService.GetSitesByTenantId(tenantId);
+        return Ok(_mapper.Map<IEnumerable<SiteDto>>(result));
+    }
+
+    [RequirePermission(RolePermissionConstants.SystemAdminManageSites)]
+    [HttpPost("sites")]
+    public async Task<ActionResult<SiteDto>> AddSite(SiteDto siteDto)
+    {
+        try
+        {
+            var site = _mapper.Map<Site>(siteDto);
+            var result = await _tenantService.AddSite(site);
+            return CreatedAtAction(nameof(GetSiteById), new { id = result.Id }, _mapper.Map<SiteDto>(result));
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [RequirePermission(RolePermissionConstants.SystemAdminManageSites)]
+    [HttpPut("sites/{id}")]
+    public async Task<IActionResult> UpdateSite(Guid id, SiteDto siteDto)
+    {
+        try
+        {
+            var site = _mapper.Map<Site>(siteDto);
+            var result = await _tenantService.UpdateSite(id, site);
+            if (!result) return BadRequest(ErrorMessages.ErrorSaving);
+            return NoContent();
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (NotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    [RequirePermission(RolePermissionConstants.SystemAdminManageSites)]
+    [HttpDelete("sites/{id}")]
+    public async Task<IActionResult> DeleteSite(Guid id)
+    {
+        try
+        {
+            var result = await _tenantService.DeleteSite(id);
+            if (!result) return BadRequest(ErrorMessages.ErrorSaving);
+            return NoContent();
+        }
+        catch (NotFoundException)
+        {
+            return NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting site with Id: {Id}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
 }

@@ -139,15 +139,73 @@ public class TenantService : ITenantService
         return true;
     }
 
-    // Tenant access methods
-    public async Task<bool> HasTenantAccess(Guid userId, Guid tenantId)
+    public async Task<Site?> GetSiteById(Guid id)
     {
-        // Get tenants directly from UserService (which handles system admin permissions)
-        var tenantDtos = await _userService.GetUserTenants(userId);
-        var tenantIds = tenantDtos.Where(t => t.Id.HasValue).Select(t => t.Id!.Value);
-        var hasAccess = tenantIds.Contains(tenantId);
-        
-        return hasAccess;
+        return await _context.Sites
+            .AsNoTracking()
+            .Include(s => s.Tenant)
+            .FirstOrDefaultAsync(s => s.Id == id);
     }
+
+    public async Task<Site> AddSite(Site site)
+    {
+        var existingTenant = await GetById(site.TenantId);
+        if (existingTenant == null)
+        {
+            throw new InvalidDataException("Tenant not found");
+        }
+
+        _context.Sites.Add(site);
+        await _uow.CompleteAsync();
+        return site;
+    }
+
+    public async Task<bool> UpdateSite(Guid id, Site site)
+    {
+        if (id != site.Id)
+        {
+            _logger.LogInformation("Invalid Site Id: {Id}", id);
+            throw new InvalidDataException(ErrorMessages.KeyNotMatch);
+        }
+
+        var existingSite = await GetSiteById(id);
+        if (existingSite == null)
+        {
+            throw new NotFoundException();
+        }
+
+        var existingTenant = await GetById(site.TenantId);
+        if (existingTenant == null)
+        {
+            throw new InvalidDataException("Tenant not found");
+        }
+
+        _context.Sites.Update(site);
+        await _uow.CompleteAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteSite(Guid id)
+    {
+        var site = await GetSiteById(id);
+        if (site == null)
+        {
+            _logger.LogInformation("Site not found, Id: {Id}", id);
+            throw new NotFoundException();
+        }
+
+        _context.Sites.Remove(site);
+        await _uow.CompleteAsync();
+        return true;
+    }
+
+    public async Task<IEnumerable<Site>> GetSitesByTenantId(Guid tenantId)
+    {
+        return await _context.Sites
+            .AsNoTracking()
+            .Where(s => s.TenantId == tenantId)
+            .ToListAsync();
+    }
+
 
 }

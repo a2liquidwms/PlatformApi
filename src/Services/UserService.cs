@@ -407,8 +407,31 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid? tenantId = null)
     {
+        // System admins get all sites (optionally filtered by tenant)
+        if (_permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants))
+        {
+            IQueryable<Site> adminQuery = _context.Sites.Where(s => s.IsActive);
+            
+            if (tenantId.HasValue)
+            {
+                adminQuery = adminQuery.Where(s => s.TenantId == tenantId.Value);
+            }
+
+            var allSites = await adminQuery.Select(s => new SiteDto 
+            { 
+                Id = s.Id, 
+                Code = s.Code,
+                Name = s.Name, 
+                TenantId = s.TenantId,
+                IsActive = s.IsActive 
+            }).ToListAsync();
+            
+            return allSites;
+        }
+
+        // Regular users get their assigned sites (site must be active)
         IQueryable<UserSite> query = _context.UserSites
-            .Where(us => us.UserId == userId && us.IsActive);
+            .Where(us => us.UserId == userId && us.Site!.IsActive);
 
         if (tenantId.HasValue)
         {
@@ -420,6 +443,7 @@ public class UserService : IUserService
         return userSites.Where(us => us.Site != null).Select(us => new SiteDto 
         { 
             Id = us.Site!.Id, 
+            Code = us.Site!.Code,
             Name = us.Site!.Name, 
             TenantId = us.Site!.TenantId,
             IsActive = us.Site!.IsActive 
@@ -428,14 +452,17 @@ public class UserService : IUserService
 
     public async Task<bool> HasTenantAccess(Guid userId, Guid tenantId)
     {
-        return await _context.UserTenants
-            .AnyAsync(ut => ut.UserId == userId && ut.TenantId == tenantId);
+        // Leverage GetUserTenants which already handles system admin permissions and caching
+        var tenantDtos = await GetUserTenants(userId);
+        var tenantIds = tenantDtos.Where(t => t.Id.HasValue).Select(t => t.Id!.Value);
+        return tenantIds.Contains(tenantId);
     }
 
     public async Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId)
     {
-        return await _context.UserSites
-            .AnyAsync(us => us.UserId == userId && us.SiteId == siteId && us.TenantId == tenantId && us.IsActive);
+        // Leverage GetUserSites which already handles system admin permissions  
+        var siteDtos = await GetUserSites(userId, tenantId);
+        return siteDtos.Any(s => s.Id == siteId);
     }
 
     // Cache invalidation methods

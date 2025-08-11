@@ -8,6 +8,7 @@ public static class TenantStartupExtensions
     {
         services.AddSingleton<IAuthorizationHandler, TenantAuthHandler>();
         services.AddScoped<IAuthorizationHandler, TenantAccessAuthHandler>();
+        services.AddScoped<IAuthorizationHandler, SiteAccessAuthHandler>();
         services.AddScoped<TenantHelper>();
 
         services.AddAuthorization(options =>
@@ -18,12 +19,17 @@ public static class TenantStartupExtensions
             // New policy - checks if authenticated user has access to tenant
             options.AddPolicy("RequireTenantAccess", policy =>
                 policy.Requirements.Add(new TenantAccessRequirement()));
+
+            // New policy - checks if authenticated user has access to site
+            options.AddPolicy("RequireSiteAccess", policy =>
+                policy.Requirements.Add(new SiteAccessRequirement()));
         });
     }
 
     public static WebApplication ConfigureTenantMiddleware(this WebApplication app)
     {
         app.UseMiddleware<TenantMiddleware>();
+        app.UseMiddleware<SiteMiddleware>();
         return app;
     }
 }

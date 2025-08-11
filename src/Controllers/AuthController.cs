@@ -53,7 +53,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var token = await _authService.Login(request.Email, request.Password, request.TenantId);
+            var token = await _authService.Login(request.Email, request.Password, request.TenantId, request.SiteId);
             return Ok(token);
         }
         catch (Exception e)

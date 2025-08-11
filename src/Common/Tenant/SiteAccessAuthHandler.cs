@@ -6,22 +6,31 @@ using PlatformApi.Services;
 namespace PlatformApi.Common.Tenant;
 
 /// <summary>
-/// Authorization requirement that validates authenticated users have access to the current tenant
+/// Authorization requirement that validates authenticated users have access to the current site
 /// </summary>
-public class TenantAccessRequirement : IAuthorizationRequirement
+public class SiteAccessRequirement : IAuthorizationRequirement
 {
 }
 
-public class TenantAccessAuthHandler : AuthorizationHandler<TenantAccessRequirement>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
+public class RequireSiteAccessAttribute : AuthorizeAttribute
+{
+    public RequireSiteAccessAttribute() 
+    {
+        Policy = "RequireSiteAccess"; 
+    }
+}
+
+public class SiteAccessAuthHandler : AuthorizationHandler<SiteAccessRequirement>
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly ILogger<TenantAccessAuthHandler> _logger;
+    private readonly ILogger<SiteAccessAuthHandler> _logger;
     private readonly UserHelper _userHelper;
     private readonly IUserService _userService;
 
-    public TenantAccessAuthHandler(
+    public SiteAccessAuthHandler(
         IHttpContextAccessor httpContextAccessor,
-        ILogger<TenantAccessAuthHandler> logger,
+        ILogger<SiteAccessAuthHandler> logger,
         UserHelper userHelper,
         IUserService userService)
     {
@@ -33,30 +42,39 @@ public class TenantAccessAuthHandler : AuthorizationHandler<TenantAccessRequirem
 
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
-        TenantAccessRequirement requirement)
+        SiteAccessRequirement requirement)
     {
         var httpContext = _httpContextAccessor.HttpContext;
 
         // Check if user is authenticated
         if (!context.User.Identity?.IsAuthenticated ?? true)
         {
-            _logger.LogWarning("TenantCheck - User is not authenticated");
+            _logger.LogWarning("SiteCheck - User is not authenticated");
             context.Fail(new AuthorizationFailureReason(this, "User is not authenticated"));
             return;
         }
 
-        // Get tenant from context (set by middleware)
+        // Get tenant from context (required for site validation)
         if (!httpContext!.Items.TryGetValue(CommonConstants.TenantHttpContext, out var tenantObj) ||
             tenantObj is not Guid tenantId)
         {
-            _logger.LogWarning("No tenant set");
+            _logger.LogWarning("No tenant set - required for site access validation");
             context.Fail(new AuthorizationFailureReason(this, "No tenant set"));
             return;
         }
 
-        // Check if user has access to this tenant via database lookup
+        // Get site from context (set by middleware)
+        if (!httpContext.Items.TryGetValue(CommonConstants.SiteHttpContext, out var siteObj) ||
+            siteObj is not Guid siteId)
+        {
+            _logger.LogWarning("No site set");
+            context.Fail(new AuthorizationFailureReason(this, "No site set"));
+            return;
+        }
+
+        // Check if user has access to this site via database lookup
         var userId = _userHelper.GetCurrentUserId();
-        var hasAccess = await _userService.HasTenantAccess(userId, tenantId);
+        var hasAccess = await _userService.HasSiteAccess(userId, siteId, tenantId);
         
         if (hasAccess)
         {
@@ -64,9 +82,8 @@ public class TenantAccessAuthHandler : AuthorizationHandler<TenantAccessRequirem
         }
         else
         {
-            _logger.LogWarning("User {UserId} does not have access to tenant {TenantId}", userId, tenantId);
-            context.Fail(new AuthorizationFailureReason(this, "No Tenant Access"));
+            _logger.LogWarning("User {UserId} does not have access to site {SiteId} in tenant {TenantId}", userId, siteId, tenantId);
+            context.Fail(new AuthorizationFailureReason(this, "No Site Access"));
         }
     }
-
 }

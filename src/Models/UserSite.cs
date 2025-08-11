@@ -20,8 +20,6 @@ public class UserSite : BaseObject
     [Required]
     public required Guid TenantId { get; set; }
     
-    public bool IsActive { get; set; } = true;
-    
     public virtual AuthUser? User { get; set; }
     
     public virtual Site? Site { get; set; }

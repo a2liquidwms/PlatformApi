@@ -14,6 +14,10 @@ public interface ITenantService
     Task<TenantConfig?> GetTenantConfigBySubdomain(string subdomain);
     Task<bool> UpdateTenantConfig(Guid tenantId, TenantConfig obj);
     
-    // Tenant access methods
-    Task<bool> HasTenantAccess(Guid userId, Guid tenantId);
+    Task<Site?> GetSiteById(Guid id);
+    Task<Site> AddSite(Site site);
+    Task<bool> UpdateSite(Guid id, Site site);
+    Task<bool> DeleteSite(Guid id);
+    Task<IEnumerable<Site>> GetSitesByTenantId(Guid tenantId);
+    
 }
