@@ -7,7 +7,7 @@ public static class TenantStartupExtensions
     public static void TenantCheckServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IAuthorizationHandler, TenantAuthHandler>();
-        services.AddSingleton<IAuthorizationHandler, TenantAccessAuthHandler>();
+        services.AddScoped<IAuthorizationHandler, TenantAccessAuthHandler>();
         services.AddScoped<TenantHelper>();
 
         services.AddAuthorization(options =>

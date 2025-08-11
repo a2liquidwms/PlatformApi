@@ -1,7 +1,9 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using PlatformApi.Common.Constants;
+using PlatformApi.Common.Permissions;
 using PlatformApi.Common.Services;
 using PlatformApi.Data;
 using PlatformApi.Models;
@@ -18,19 +20,26 @@ public class UserService : IUserService
     private readonly IMapper _mapper;
     private readonly ILogger<UserService> _logger;
     private readonly IUnitOfWork<PlatformDbContext> _uow;
+    private readonly PermissionHelper _permissionHelper;
+    private readonly IMemoryCache _cache;
+    private const int CacheMinutes = 5;
 
     public UserService(
         PlatformDbContext context,
         UserManager<AuthUser> userManager,
         IMapper mapper,
         ILogger<UserService> logger,
-        IUnitOfWork<PlatformDbContext> uow)
+        IUnitOfWork<PlatformDbContext> uow,
+        PermissionHelper permissionHelper,
+        IMemoryCache cache)
     {
         _context = context;
         _userManager = userManager;
         _mapper = mapper;
         _logger = logger;
         _uow = uow;
+        _permissionHelper = permissionHelper;
+        _cache = cache;
     }
 
     public async Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsers(Guid tenantId)
@@ -329,6 +338,39 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId)
     {
+        // System admins always get fresh data - no caching (so they see new tenants immediately)
+        if (_permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants))
+        {
+            _logger.LogDebug("System admin access - returning fresh data for all tenants, user {UserId}", userId);
+            var allTenants = await _context.Tenants
+                .Select(t => new TenantDto 
+                { 
+                    Id = t.Id, 
+                    Name = t.Name, 
+                    Code = t.Code, 
+                    SubDomain = t.SubDomain 
+                })
+                .ToListAsync();
+            return allTenants;
+        }
+        
+        // Regular users get cached results for performance
+        var generationKey = "user_tenant_cache_generation";
+        var cacheKey = $"user_tenants_{userId}";
+        var userCacheKey = $"user_tenants_gen_{userId}";
+        
+        // Check if cache is still valid based on generation
+        if (_cache.TryGetValue(cacheKey, out IEnumerable<TenantDto>? cachedTenants) && cachedTenants != null &&
+            _cache.TryGetValue(userCacheKey, out int userGeneration) &&
+            _cache.TryGetValue(generationKey, out int currentGeneration) &&
+            userGeneration == currentGeneration)
+        {
+            _logger.LogDebug("Cache hit for user tenants: {UserId}", userId);
+            return cachedTenants;
+        }
+
+        _logger.LogDebug("Cache miss for user tenants, querying database: {UserId}", userId);
+        
         // Get all tenants where user is explicitly assigned via UserTenant table
         var tenants = await _context.UserTenants
             .Where(ut => ut.UserId == userId)
@@ -341,6 +383,24 @@ public class UserService : IUserService
                 SubDomain = ut.Tenant!.SubDomain 
             })
             .ToListAsync();
+
+        // Cache the results for regular users
+        var cacheOptions = new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheMinutes),
+            SlidingExpiration = TimeSpan.FromMinutes(CacheMinutes / 2)
+        };
+
+        // Get or initialize current generation
+        if (!_cache.TryGetValue(generationKey, out currentGeneration))
+        {
+            currentGeneration = 1;
+            _cache.Set(generationKey, currentGeneration);
+        }
+
+        _cache.Set(cacheKey, tenants, cacheOptions);
+        _cache.Set(userCacheKey, currentGeneration, cacheOptions);
+        _logger.LogDebug("Cached {TenantCount} tenants for user {UserId} with generation {Generation}", tenants.Count(), userId, currentGeneration);
             
         return tenants;
     }
@@ -376,6 +436,35 @@ public class UserService : IUserService
     {
         return await _context.UserSites
             .AnyAsync(us => us.UserId == userId && us.SiteId == siteId && us.TenantId == tenantId && us.IsActive);
+    }
+
+    // Cache invalidation methods
+    public void InvalidateUserTenantCache(Guid userId)
+    {
+        var cacheKey = $"user_tenants_{userId}";
+        _cache.Remove(cacheKey);
+        
+        _logger.LogDebug("Invalidated tenant cache for user {UserId}", userId);
+    }
+
+    public void InvalidateAllUserTenantCaches()
+    {
+        // Note: IMemoryCache doesn't provide a way to enumerate keys or clear by pattern
+        // This is a limitation of MemoryCache. For production systems, consider using
+        // a cache implementation that supports pattern-based invalidation like Redis
+        
+        // For now, we'll use a cache generation approach
+        var cacheKey = "user_tenant_cache_generation";
+        if (_cache.TryGetValue(cacheKey, out int generation))
+        {
+            _cache.Set(cacheKey, generation + 1);
+        }
+        else
+        {
+            _cache.Set(cacheKey, 1);
+        }
+        
+        _logger.LogDebug("Invalidated all user tenant caches by incrementing generation");
     }
 
     // User invitation methods

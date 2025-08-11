@@ -16,6 +16,4 @@ public interface ITenantService
     
     // Tenant access methods
     Task<bool> HasTenantAccess(Guid userId, Guid tenantId);
-    Task<List<Guid>> GetUserTenants(Guid userId);
-    void InvalidateUserCache(Guid userId);
 }

@@ -224,15 +224,6 @@ public class UserController : ControllerBase
     {
         try
         {
-            if (_permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants))
-            {
-                // User has ManageTenants permission - return all tenants
-                var allTenants = await _tenantService.GetAll();
-                var allTenantsDto = _mapper.Map<IEnumerable<TenantDto>>(allTenants);
-                return Ok(allTenantsDto);
-            }
-            
-            // User doesn't have ManageTenants permission - return only their tenants
             var userId = _userHelper.GetCurrentUserId();
             var tenants = await _userService.GetUserTenants(userId);
             return Ok(tenants);

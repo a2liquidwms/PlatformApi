@@ -36,4 +36,8 @@ public interface IUserService
     Task<UserInvitation?> ValidateInvitationTokenAsync(string token);
     Task<UserExistenceCheckDto> CheckUserExistenceAsync(string email, Guid tenantId);
     Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId);
+    
+    // Cache invalidation methods
+    void InvalidateUserTenantCache(Guid userId);
+    void InvalidateAllUserTenantCaches();
 }

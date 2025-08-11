@@ -40,25 +40,5 @@ public class PermissionHelper
         
         return hasPermission;
     }
-
-    public List<string> GetAllPermissions()
-    {
-        var user = _httpContextAccessor.HttpContext?.User;
-        if (user?.Identity?.IsAuthenticated != true)
-        {
-            _logger.LogWarning("GetAllPermissions called for unauthenticated user");
-            return new List<string>();
-        }
-
-        var userPermissions = _httpContextAccessor.HttpContext?.Items[PermissionConstants.PermissionContext] as List<CommonPermission>;
-        if (userPermissions == null || !userPermissions.Any())
-        {
-            _logger.LogDebug("No permissions found for user");
-            return new List<string>();
-        }
-
-        var permissions = userPermissions.Select(p => p.Code).ToList();
-        
-        return permissions;
-    }
+    
 }

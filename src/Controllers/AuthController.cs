@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using PlatformApi.Common.Auth;
 using PlatformApi.Common.Constants;
@@ -16,18 +15,14 @@ public class AuthController : ControllerBase
 {
     private readonly ILogger<AuthController> _logger;
     private readonly IAuthService _authService;
-    private readonly SignInManager<AuthUser> _signInManager;
-    private readonly IConfiguration _configuration;
     private readonly TenantHelper _tenantHelper;
     private readonly UserHelper _userHelper;
 
     public AuthController(ILogger<AuthController> logger, IAuthService authService,
-        SignInManager<AuthUser> signInManager, IConfiguration configuration, TenantHelper tenantHelper, UserHelper userHelper)
+        TenantHelper tenantHelper, UserHelper userHelper)
     {
         _logger = logger;
         _authService = authService;
-        _signInManager = signInManager;
-        _configuration = configuration;
         _tenantHelper = tenantHelper;
         _userHelper = userHelper;
     }
@@ -145,7 +140,7 @@ public class AuthController : ControllerBase
     //         return Redirect($"{redirectUrl}?error=External_login_failed");
     //     }
     // }
-    
+
     [AllowAnonymous]
     [HttpPost("confirm-email")]
     public async Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest request)
@@ -158,13 +153,14 @@ public class AuthController : ControllerBase
             {
                 tenantNullable = tenantId;
             }
+
             var result = await _authService.ConfirmEmailAsync(request.UserId, request.Token, null, tenantNullable);
-            
+
             if (result)
             {
                 return Ok(new { Message = "Email confirmed successfully! You can now log in." });
             }
-            
+
             return BadRequest("Invalid or expired email confirmation token.");
         }
         catch (Exception ex)
@@ -186,15 +182,16 @@ public class AuthController : ControllerBase
             {
                 tenantNullable = tenantId;
             }
+
             var result = await _authService.SendEmailConfirmationAsync(request.Email, null, tenantNullable);
 
             if (result)
             {
                 return Ok(new { Message = "If the email address is registered, a confirmation email has been sent." });
             }
-            _logger.LogError( "Error resending confirmation email to {Email}", request.Email);
+
+            _logger.LogError("Error resending confirmation email to {Email}", request.Email);
             return BadRequest("There was an unexpected error while sending a confirmation email.");
-            
         }
         catch (Exception ex)
         {
@@ -215,8 +212,9 @@ public class AuthController : ControllerBase
             {
                 tenantNullable = tenantId;
             }
-            var result = await _authService.SendPasswordResetAsync(request.Email, null, tenantNullable);
-            
+
+            await _authService.SendPasswordResetAsync(request.Email, null, tenantNullable);
+
             // Always return success to prevent email enumeration
             return Ok(new { Message = "If the email address is registered, a password reset email has been sent." });
         }
@@ -239,13 +237,15 @@ public class AuthController : ControllerBase
             {
                 tenantNullable = tenantId;
             }
-            var result = await _authService.ResetPasswordAsync(request.UserId, request.Token, request.NewPassword, null, tenantNullable);
-            
+
+            var result = await _authService.ResetPasswordAsync(request.UserId, request.Token, request.NewPassword, null,
+                tenantNullable);
+
             if (result)
             {
                 return Ok(new { Message = "Password reset successfully! You can now log in with your new password." });
             }
-            
+
             return BadRequest("Invalid or expired password reset token.");
         }
         catch (Exception ex)
@@ -254,7 +254,7 @@ public class AuthController : ControllerBase
             return BadRequest("Failed to reset password. Please try again or request a new password reset email.");
         }
     }
-    
+
     // private bool IsValidRedirectUrl(string url)
     // {
     //     try
@@ -305,7 +305,7 @@ public class AuthController : ControllerBase
     //         host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
     //         host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase));
     // }
-    
+
     // [HttpPost("link-provider")]
     // public async Task<IActionResult> LinkProvider([FromBody] ExternalLoginRequest request)
     // {
@@ -347,7 +347,6 @@ public class AuthController : ControllerBase
     // }
 
 
-
     [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
@@ -362,7 +361,7 @@ public class AuthController : ControllerBase
             return Unauthorized("Invalid or Expired token");
         }
     }
-    
+
     [AllowAnonymous]
     [HttpPost("register-invitation")]
     public async Task<IActionResult> RegisterViaInvitation([FromBody] RegisterViaInvitationRequest request)
@@ -370,12 +369,12 @@ public class AuthController : ControllerBase
         try
         {
             var result = await _authService.RegisterViaInvitationAsync(request);
-            
+
             if (!result.Succeeded)
             {
                 return BadRequest(result.Errors);
             }
-            
+
             _logger.LogInformation("User {Email} registered successfully via invitation", request.Email);
             return Ok(new { Message = "User registered successfully. Please log in with your credentials." });
         }
@@ -385,10 +384,11 @@ public class AuthController : ControllerBase
             return BadRequest(new { Message = "Registration failed" });
         }
     }
-    
+
     [Authorize]
     [HttpGet("my/permissions")]
-    public async Task<ActionResult<IEnumerable<string>>> GetMyPermissions([FromQuery] Guid? tenantId = null, [FromQuery] Guid? siteId = null)
+    public async Task<ActionResult<IEnumerable<string>>> GetMyPermissions([FromQuery] Guid? tenantId = null,
+        [FromQuery] Guid? siteId = null)
     {
         try
         {
@@ -417,7 +417,8 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpGet("my/roles")]
-    public async Task<ActionResult<IEnumerable<RoleDto>>> GetMyRoles([FromQuery] Guid? tenantId = null, [FromQuery] Guid? siteId = null)
+    public async Task<ActionResult<IEnumerable<RoleDto>>> GetMyRoles([FromQuery] Guid? tenantId = null,
+        [FromQuery] Guid? siteId = null)
     {
         try
         {
@@ -444,4 +445,3 @@ public class AuthController : ControllerBase
         }
     }
 }
-
