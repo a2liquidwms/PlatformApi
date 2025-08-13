@@ -101,13 +101,6 @@ else
 builder.Services.AddScoped<UserHelper>();
 builder.Services.AddScoped<PermissionHelper>();
 
-// Add this before adding authentication in Program.cs
-builder.Services.Configure<CookiePolicyOptions>(options =>
-{
-    options.MinimumSameSitePolicy = SameSiteMode.None;
-    options.Secure = CookieSecurePolicy.Always;
-});
-
 
 // Add Google Authentication Separately
 var logger = LoggerFactory.Create(logging =>
@@ -142,7 +135,6 @@ app.ConfigureCors();  // common services
 app.UseMiddleware<PlatformApi.Middleware.LocalTenantHeaderMiddleware>();
 
 //if using auth
-app.UseCookiePolicy();
 app.UseAuthentication();
 app.UseMiddleware<PermissionsAuthServerMiddleware>();
 app.ConfigureTenantMiddleware(); //must come before permissions

@@ -80,121 +80,6 @@ public class AuthPagesController : Controller
         return (Guid.Empty, null);
     }
 
-    private string GetCookieDomain()
-    {
-        return _configuration["AUTH_COOKIE_DOMAIN"] ?? "";
-    }
-
-    /// <summary>
-    /// Detects if the current request is from Safari browser
-    /// </summary>
-    private bool IsSafariBrowser()
-    {
-        var userAgent = Request.Headers.UserAgent.ToString();
-        return userAgent.Contains("Safari") && !userAgent.Contains("Chrome") && !userAgent.Contains("Chromium");
-    }
-
-    /// <summary>
-    /// Detects if the current request is to localhost
-    /// </summary>
-    private bool IsLocalhost()
-    {
-        var host = Request.Host.Host.ToLower();
-        var isLocal = host == "localhost" || host == "127.0.0.1" || host.EndsWith(".myapp.local") || host.EndsWith("myapp.local");
-        _logger.LogDebug("IsLocalhost check - Host: '{Host}', IsLocal: {IsLocal}", host, isLocal);
-        return isLocal;
-    }
-    
-    private string GetLocalhostDomain()
-    {
-        var host = Request.Host.Host.ToLower();
-        if (host.EndsWith(".myapp.local"))
-        {
-            return ".myapp.local"; // Allow cross-subdomain sharing on .myapp.local
-        }
-        if (host.EndsWith(".localhost"))
-        {
-            return ".localhost"; // Allow cross-subdomain sharing on .localhost
-        }
-        return ""; // No domain for regular localhost
-    }
-
-    /// <summary>
-    /// Determines if we're running in development environment
-    /// </summary>
-    private bool IsDevelopment()
-    {
-        return _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
-    }
-
-    /// <summary>
-    /// Creates Safari-compatible cookie options for the current environment
-    /// </summary>
-    private CookieOptions CreateSafariCompatibleCookieOptions(string? cookieDomain, bool isRefreshToken = false)
-    {
-        var isSafari = IsSafariBrowser();
-        var isLocalhost = IsLocalhost();
-        var isDevelopment = IsDevelopment();
-        
-        _logger.LogInformation("Cookie Debug - Safari: {IsSafari}, Localhost: {IsLocalhost}, Host: {Host}, Domain: {Domain}, UserAgent: {UserAgent}", 
-            isSafari, isLocalhost, Request.Host.Host, cookieDomain ?? "null", Request.Headers.UserAgent.ToString());
-        
-        var cookieOptions = new CookieOptions
-        {
-            HttpOnly = true,
-            Path = "/"
-        };
-
-        // Local development (localhost or .myapp.local): Configure for subdomain sharing
-        if (isLocalhost || (!string.IsNullOrEmpty(cookieDomain) && cookieDomain.Contains("myapp.local")))
-        {
-            var localhostDomain = GetLocalhostDomain();
-            cookieOptions.SameSite = SameSiteMode.Lax;
-            cookieOptions.Secure = false;
-            
-            if (!string.IsNullOrEmpty(localhostDomain))
-            {
-                cookieOptions.Domain = localhostDomain; // Set domain for subdomain sharing
-            }
-            
-            _logger.LogDebug("Using localhost cookie configuration: SameSite=Lax, Secure=false, Domain={Domain}", 
-                localhostDomain ?? "null");
-        }
-        // Production or non-Safari: Use standard configuration
-        else
-        {
-            // Safari needs SameSite=None for cross-domain cookies
-            if (isSafari && !string.IsNullOrEmpty(cookieDomain))
-            {
-                cookieOptions.SameSite = SameSiteMode.None;
-                cookieOptions.Secure = true; // Required with SameSite=None
-                cookieOptions.Domain = cookieDomain;
-                _logger.LogDebug("Using Safari cross-domain cookie configuration: SameSite=None, Secure=true, Domain={Domain}", cookieDomain);
-            }
-            else
-            {
-                cookieOptions.SameSite = SameSiteMode.Lax;
-                cookieOptions.Secure = false;
-                
-                // Set domain for cross-subdomain sharing (only if not localhost)
-                if (!string.IsNullOrEmpty(cookieDomain))
-                {
-                    cookieOptions.Domain = cookieDomain;
-                }
-            }
-            
-            _logger.LogDebug("Using standard cookie configuration: SameSite=Lax, Secure={Secure}, Domain={Domain}", 
-                cookieOptions.Secure, cookieDomain ?? "null");
-        }
-
-        // Set expiration
-        if (isRefreshToken)
-        {
-            // Refresh tokens get longer expiration (handled by caller)
-        }
-        
-        return cookieOptions;
-    }
 
     /// <summary>
     /// Resolves the effective return URL using fallback hierarchy:
@@ -314,6 +199,54 @@ public class AuthPagesController : Controller
         return (null, tenantId);
     }
 
+    /// <summary>
+    /// Clears authentication cookies by setting them to expired
+    /// </summary>
+    private void ClearAuthCookies()
+    {
+        var cookieDomain = _configuration["AUTH_COOKIE_DOMAIN"];
+        var isSecure = Request.Scheme == "https";
+        var secureFlag = isSecure ? "; secure" : "";
+        var expires = DateTimeOffset.UtcNow.AddDays(-1); // Expire in the past to delete
+
+        var clearCookieValue = $"; expires={expires:ddd, dd MMM yyyy HH:mm:ss} GMT; domain={cookieDomain}; path=/; samesite=lax; httponly{secureFlag}";
+        Response.Headers.Append("Set-Cookie", $"access_token={clearCookieValue}");
+        Response.Headers.Append("Set-Cookie", $"refresh_token={clearCookieValue}");
+        
+        _logger.LogInformation("Cleared existing authentication cookies");
+    }
+
+    /// <summary>
+    /// Generates authentication cookies using environment configuration
+    /// </summary>
+    private void GenerateAuthCookies(AuthTokenBundle tokenBundle)
+    {
+        var cookieDomain = _configuration["AUTH_COOKIE_DOMAIN"]; // e.g., ".myapp.local" or ".yourdomain.com"
+        var isSecure = Request.Scheme == "https"; // Auto-detect based on request scheme
+        var secureFlag = isSecure ? "; secure" : "";
+        
+        _logger.LogInformation("Setting cookies - Domain: {Domain}, Secure: {IsSecure}, Scheme: {Scheme}", 
+            cookieDomain, isSecure, Request.Scheme);
+
+        // Set access token cookie
+        if (!string.IsNullOrEmpty(tokenBundle.AccessToken))
+        {
+            var expires = DateTimeOffset.UtcNow.AddSeconds(tokenBundle.Expires);
+            var cookieValue = $"{tokenBundle.AccessToken}; expires={expires:ddd, dd MMM yyyy HH:mm:ss} GMT; domain={cookieDomain}; path=/; samesite=lax; httponly{secureFlag}";
+            Response.Headers.Append("Set-Cookie", $"access_token={cookieValue}");
+            _logger.LogInformation("Set access_token cookie, expires: {Expires}", expires);
+        }
+        
+        // Set refresh token cookie
+        if (!string.IsNullOrEmpty(tokenBundle.RefreshToken))
+        {
+            var expires = DateTimeOffset.UtcNow.AddDays(180);
+            var cookieValue = $"{tokenBundle.RefreshToken}; expires={expires:ddd, dd MMM yyyy HH:mm:ss} GMT; domain={cookieDomain}; path=/; samesite=lax; httponly{secureFlag}";
+            Response.Headers.Append("Set-Cookie", $"refresh_token={cookieValue}");
+            _logger.LogInformation("Set refresh_token cookie, expires: {Expires}", expires);
+        }
+    }
+
     #region Error Pages
     [HttpGet("tenant-error")]
     public async Task<IActionResult> TenantError(string? message = null)
@@ -349,6 +282,8 @@ public class AuthPagesController : Controller
         
         ViewBag.ReturnUrl = returnUrl;
 
+        _logger.LogInformation("DEBUG Login POST - returnUrl parameter: '{ReturnUrl}'", returnUrl ?? "NULL");
+
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -360,37 +295,28 @@ public class AuthPagesController : Controller
 
             if (tokenBundle != null)
             {
-                var cookieDomain = GetCookieDomain();
-                var cookieOptions = CreateSafariCompatibleCookieOptions(cookieDomain);
+                // Clear any existing authentication cookies before setting new ones
+                ClearAuthCookies();
                 
-                // Set access token cookie
-                if (!string.IsNullOrEmpty(tokenBundle.AccessToken))
-                {
-                    cookieOptions.Expires = DateTimeOffset.UtcNow.AddSeconds(tokenBundle.Expires);
-                    Response.Cookies.Append("access_token", tokenBundle.AccessToken, cookieOptions);
-                    _logger.LogInformation("Set access_token cookie. Domain: {Domain}, SameSite: {SameSite}, Secure: {Secure}", 
-                        cookieOptions.Domain ?? "null", cookieOptions.SameSite, cookieOptions.Secure);
-                }
+                // Generate new authentication cookies
+                GenerateAuthCookies(tokenBundle);
                 
-                // Set refresh token cookie with longer expiration
-                if (!string.IsNullOrEmpty(tokenBundle.RefreshToken))
-                {
-                    var refreshTokenDays = int.Parse(_configuration["AUTH_REFRESH_TOKEN_DAYS"] ?? "180");
-                    cookieOptions.Expires = DateTimeOffset.UtcNow.AddDays(refreshTokenDays);
+                // Determine redirect URL: use provided returnUrl or fall back to DEFAULT_RETURN_URL
+                var redirectUrl = !string.IsNullOrEmpty(returnUrl) 
+                    ? returnUrl 
+                    : _configuration["DEFAULT_RETURN_URL"];
 
-                    Response.Cookies.Append("refresh_token", tokenBundle.RefreshToken, cookieOptions);
-                    _logger.LogInformation("Set refresh_token cookie. Domain: {Domain}, SameSite: {SameSite}, Secure: {Secure}, Expires: {Expires}", 
-                        cookieOptions.Domain ?? "null", cookieOptions.SameSite, cookieOptions.Secure, cookieOptions.Expires);
-                }
+                _logger.LogInformation("DEBUG - Redirect logic. returnUrl: '{ReturnUrl}', defaultUrl: '{DefaultUrl}', finalUrl: '{FinalUrl}'", 
+                    returnUrl ?? "NULL", _configuration["DEFAULT_RETURN_URL"] ?? "NULL", redirectUrl ?? "NULL");
                 
-                // Redirect back to the effective return URL
-                var effectiveReturnUrl = GetEffectiveReturnUrl(returnUrl, tenantId);
-                if (effectiveReturnUrl != "/")
+                if (!string.IsNullOrEmpty(redirectUrl))
                 {
-                    return Redirect(effectiveReturnUrl);
+                    _logger.LogInformation("Redirecting to: {RedirectUrl}", redirectUrl);
+                    return Redirect(redirectUrl);
                 }
                 
-                // Fallback success message if no return URL
+                // Final fallback if no URLs configured
+                _logger.LogInformation("No redirect URLs configured, showing success message");
                 ViewBag.SuccessMessage = "Login successful! You can now access the application.";
                 return View(model);
             }
@@ -416,17 +342,8 @@ public class AuthPagesController : Controller
         var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
 
-        // Clear authentication cookies with Safari compatibility
-        var cookieDomain = GetCookieDomain();
-        var clearCookieOptions = CreateSafariCompatibleCookieOptions(cookieDomain);
-        clearCookieOptions.Expires = DateTimeOffset.UtcNow.AddDays(-1); // Expire in the past to delete
-
-        // Clear both access and refresh tokens
-        Response.Cookies.Append("access_token", "", clearCookieOptions);
-        Response.Cookies.Append("refresh_token", "", clearCookieOptions);
-
-        _logger.LogInformation("Clearing cookies for user logout. Browser: {UserAgent}, Domain: {Domain}, SameSite: {SameSite}, Secure: {Secure}", 
-            Request.Headers.UserAgent.ToString(), clearCookieOptions.Domain ?? "null", clearCookieOptions.SameSite, clearCookieOptions.Secure);
+        // Clear authentication cookies
+        ClearAuthCookies();
 
         _logger.LogInformation("User logged out successfully");
 
