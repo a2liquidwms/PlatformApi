@@ -564,7 +564,7 @@ public class AuthPagesController : Controller
 #region Input Models
 public class LoginInputModel
 {
-    [Required(ErrorMessage = "Email is required")]
+    [Required(ErrorMessage = "Email is required2")]
     [EmailAddress(ErrorMessage = "Please enter a valid email address")]
     public string Email { get; set; } = string.Empty;
 
