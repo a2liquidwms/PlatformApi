@@ -19,9 +19,11 @@
 }
 
 <form method="post" asp-action="RegisterInvitation">
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     <input type="hidden" asp-for="InvitationId" />
     <input type="hidden" asp-for="Token" />
     <input type="hidden" asp-for="Email" />
+    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
     
     <div class="form-group">
         <label asp-for="Email">Email Address</label>
@@ -48,7 +50,7 @@
 
 <div class="auth-links">
     <span>Already have an account?</span>
-    <a asp-action="Login" class="auth-link">Sign in here</a>
+    <a asp-action="Login" asp-route-returnUrl="@ViewBag.ReturnUrl" class="auth-link">Sign in here</a>
 </div>
 
 <style>

@@ -82,23 +82,215 @@ public class AuthPagesController : Controller
 
     private string GetCookieDomain()
     {
-        var baseDomain = _configuration["UI_BASE_DOMAIN"];
-        if (string.IsNullOrEmpty(baseDomain))
+        return _configuration["AUTH_COOKIE_DOMAIN"] ?? "";
+    }
+
+    /// <summary>
+    /// Detects if the current request is from Safari browser
+    /// </summary>
+    private bool IsSafariBrowser()
+    {
+        var userAgent = Request.Headers.UserAgent.ToString();
+        return userAgent.Contains("Safari") && !userAgent.Contains("Chrome") && !userAgent.Contains("Chromium");
+    }
+
+    /// <summary>
+    /// Detects if the current request is to localhost
+    /// </summary>
+    private bool IsLocalhost()
+    {
+        var host = Request.Host.Host.ToLower();
+        var isLocal = host == "localhost" || host == "127.0.0.1" || host.EndsWith(".myapp.local") || host.EndsWith("myapp.local");
+        _logger.LogDebug("IsLocalhost check - Host: '{Host}', IsLocal: {IsLocal}", host, isLocal);
+        return isLocal;
+    }
+    
+    private string GetLocalhostDomain()
+    {
+        var host = Request.Host.Host.ToLower();
+        if (host.EndsWith(".myapp.local"))
         {
-            return ""; // No domain restriction for development
+            return ".myapp.local"; // Allow cross-subdomain sharing on .myapp.local
+        }
+        if (host.EndsWith(".localhost"))
+        {
+            return ".localhost"; // Allow cross-subdomain sharing on .localhost
+        }
+        return ""; // No domain for regular localhost
+    }
+
+    /// <summary>
+    /// Determines if we're running in development environment
+    /// </summary>
+    private bool IsDevelopment()
+    {
+        return _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+    }
+
+    /// <summary>
+    /// Creates Safari-compatible cookie options for the current environment
+    /// </summary>
+    private CookieOptions CreateSafariCompatibleCookieOptions(string? cookieDomain, bool isRefreshToken = false)
+    {
+        var isSafari = IsSafariBrowser();
+        var isLocalhost = IsLocalhost();
+        var isDevelopment = IsDevelopment();
+        
+        _logger.LogInformation("Cookie Debug - Safari: {IsSafari}, Localhost: {IsLocalhost}, Host: {Host}, Domain: {Domain}, UserAgent: {UserAgent}", 
+            isSafari, isLocalhost, Request.Host.Host, cookieDomain ?? "null", Request.Headers.UserAgent.ToString());
+        
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Path = "/"
+        };
+
+        // Local development (localhost or .myapp.local): Configure for subdomain sharing
+        if (isLocalhost || (!string.IsNullOrEmpty(cookieDomain) && cookieDomain.Contains("myapp.local")))
+        {
+            var localhostDomain = GetLocalhostDomain();
+            cookieOptions.SameSite = SameSiteMode.Lax;
+            cookieOptions.Secure = false;
+            
+            if (!string.IsNullOrEmpty(localhostDomain))
+            {
+                cookieOptions.Domain = localhostDomain; // Set domain for subdomain sharing
+            }
+            
+            _logger.LogDebug("Using localhost cookie configuration: SameSite=Lax, Secure=false, Domain={Domain}", 
+                localhostDomain ?? "null");
+        }
+        // Production or non-Safari: Use standard configuration
+        else
+        {
+            // Safari needs SameSite=None for cross-domain cookies
+            if (isSafari && !string.IsNullOrEmpty(cookieDomain))
+            {
+                cookieOptions.SameSite = SameSiteMode.None;
+                cookieOptions.Secure = true; // Required with SameSite=None
+                cookieOptions.Domain = cookieDomain;
+                _logger.LogDebug("Using Safari cross-domain cookie configuration: SameSite=None, Secure=true, Domain={Domain}", cookieDomain);
+            }
+            else
+            {
+                cookieOptions.SameSite = SameSiteMode.Lax;
+                cookieOptions.Secure = false;
+                
+                // Set domain for cross-subdomain sharing (only if not localhost)
+                if (!string.IsNullOrEmpty(cookieDomain))
+                {
+                    cookieOptions.Domain = cookieDomain;
+                }
+            }
+            
+            _logger.LogDebug("Using standard cookie configuration: SameSite=Lax, Secure={Secure}, Domain={Domain}", 
+                cookieOptions.Secure, cookieDomain ?? "null");
         }
 
-        // Extract the root domain for cross-subdomain sharing
-        // If baseDomain is "localhost:5173" (dev) return empty string
-        // If baseDomain is "mysite.com" return ".mysite.com"
-        if (baseDomain.Contains("localhost"))
+        // Set expiration
+        if (isRefreshToken)
         {
-            return ""; // Localhost doesn't support domain cookies
+            // Refresh tokens get longer expiration (handled by caller)
+        }
+        
+        return cookieOptions;
+    }
+
+    /// <summary>
+    /// Resolves the effective return URL using fallback hierarchy:
+    /// 1. Provided returnUrl (if valid)
+    /// 2. System default from environment variable
+    /// 3. Root fallback ("/")
+    /// </summary>
+    private string GetEffectiveReturnUrl(string? providedReturnUrl, Guid? tenantId = null)
+    {
+        // 1. Use provided returnUrl if valid
+        if (!string.IsNullOrEmpty(providedReturnUrl) && IsValidReturnUrl(providedReturnUrl, tenantId))
+        {
+            return providedReturnUrl;
         }
 
-        // Remove port and add leading dot for subdomain sharing
-        var domain = baseDomain.Split(':')[0];
-        return $".{domain}";
+        // 2. Fall back to system default
+        var defaultReturnUrl = _configuration["DEFAULT_RETURN_URL"];
+        if (!string.IsNullOrEmpty(defaultReturnUrl) && IsValidReturnUrl(defaultReturnUrl, tenantId))
+        {
+            return defaultReturnUrl;
+        }
+
+        // 3. Final fallback to root
+        return "/";
+    }
+
+    /// <summary>
+    /// Validates if a return URL is safe to redirect to.
+    /// Supports local URLs, configured default URL, and tenant-specific URLs.
+    /// </summary>
+    private bool IsValidReturnUrl(string? returnUrl, Guid? tenantId = null)
+    {
+        if (string.IsNullOrEmpty(returnUrl)) return false;
+
+        try
+        {
+            // Allow local URLs (development)
+            if (Url.IsLocalUrl(returnUrl)) return true;
+
+            // Allow configured default URL
+            var defaultUrl = _configuration["DEFAULT_RETURN_URL"];
+            if (!string.IsNullOrEmpty(defaultUrl) && returnUrl.Equals(defaultUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Allow tenant-specific URLs if we have tenant context
+            if (tenantId.HasValue && IsValidTenantUrl(returnUrl, tenantId.Value))
+            {
+                return true;
+            }
+
+            // Allow configured auth domain pattern
+            var authBaseDomain = _configuration["AUTH_BASE_DOMAIN"];
+            if (!string.IsNullOrEmpty(authBaseDomain))
+            {
+                var uri = new Uri(returnUrl);
+                return uri.Host.Contains(authBaseDomain.Split(':')[0]);
+            }
+
+            return false;
+        }
+        catch (UriFormatException)
+        {
+            // Invalid URI format
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Validates if a URL belongs to a specific tenant's subdomain.
+    /// </summary>
+    private bool IsValidTenantUrl(string returnUrl, Guid tenantId)
+    {
+        try
+        {
+            var uri = new Uri(returnUrl);
+            var authBaseDomain = _configuration["AUTH_BASE_DOMAIN"];
+            
+            if (string.IsNullOrEmpty(authBaseDomain)) return false;
+
+            // For development (localhost), allow any localhost URL
+            if (authBaseDomain.Contains("localhost"))
+            {
+                return uri.Host.Contains("localhost");
+            }
+
+            // For production, validate tenant subdomain pattern
+            // Expected format: https://tenant1.ui.domain.com (where AUTH_BASE_DOMAIN might be api.domain.com)
+            var baseDomain = authBaseDomain.Split(':')[0];
+            return uri.Host.EndsWith($".{baseDomain}") || uri.Host.Equals(baseDomain, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (UriFormatException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -134,12 +326,18 @@ public class AuthPagesController : Controller
 
     #region Login
     [HttpGet("login")]
-    public async Task<IActionResult> Login(string? returnUrl = null)
+    public async Task<IActionResult> Login(string? returnUrl = null, string? successMessage = null)
     {
         var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
         
         ViewBag.ReturnUrl = returnUrl;
+        
+        if (!string.IsNullOrEmpty(successMessage))
+        {
+            ViewBag.SuccessMessage = successMessage;
+        }
+        
         return View();
     }
 
@@ -162,51 +360,34 @@ public class AuthPagesController : Controller
 
             if (tokenBundle != null)
             {
-                // Set secure cross-subdomain cookies
                 var cookieDomain = GetCookieDomain();
-                var isProduction = _configuration["ASPNETCORE_ENVIRONMENT"] != "Development";
+                var cookieOptions = CreateSafariCompatibleCookieOptions(cookieDomain);
                 
-                var cookieOptions = new CookieOptions
-                {
-                    HttpOnly = true,
-                    Secure = isProduction, // Only require HTTPS in production
-                    SameSite = SameSiteMode.Lax, // Allow cross-subdomain navigation
-                    Expires = DateTimeOffset.UtcNow.AddSeconds(tokenBundle.Expires)
-                };
-
-                // Set domain for cross-subdomain sharing (only if not localhost)
-                if (!string.IsNullOrEmpty(cookieDomain))
-                {
-                    cookieOptions.Domain = cookieDomain;
-                }
-
+                // Set access token cookie
                 if (!string.IsNullOrEmpty(tokenBundle.AccessToken))
                 {
+                    cookieOptions.Expires = DateTimeOffset.UtcNow.AddSeconds(tokenBundle.Expires);
                     Response.Cookies.Append("access_token", tokenBundle.AccessToken, cookieOptions);
+                    _logger.LogInformation("Set access_token cookie. Domain: {Domain}, SameSite: {SameSite}, Secure: {Secure}", 
+                        cookieOptions.Domain ?? "null", cookieOptions.SameSite, cookieOptions.Secure);
                 }
                 
-                // Refresh token with longer expiration
+                // Set refresh token cookie with longer expiration
                 if (!string.IsNullOrEmpty(tokenBundle.RefreshToken))
                 {
-                    var refreshCookieOptions = new CookieOptions
-                    {
-                        HttpOnly = true,
-                        Secure = isProduction,
-                        SameSite = SameSiteMode.Lax
-                    };
+                    var refreshTokenDays = int.Parse(_configuration["AUTH_REFRESH_TOKEN_DAYS"] ?? "180");
+                    cookieOptions.Expires = DateTimeOffset.UtcNow.AddDays(refreshTokenDays);
 
-                    if (!string.IsNullOrEmpty(cookieDomain))
-                    {
-                        refreshCookieOptions.Domain = cookieDomain;
-                    }
-
-                    Response.Cookies.Append("refresh_token", tokenBundle.RefreshToken, refreshCookieOptions);
+                    Response.Cookies.Append("refresh_token", tokenBundle.RefreshToken, cookieOptions);
+                    _logger.LogInformation("Set refresh_token cookie. Domain: {Domain}, SameSite: {SameSite}, Secure: {Secure}, Expires: {Expires}", 
+                        cookieOptions.Domain ?? "null", cookieOptions.SameSite, cookieOptions.Secure, cookieOptions.Expires);
                 }
                 
-                // Redirect back to the requesting URL
-                if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                // Redirect back to the effective return URL
+                var effectiveReturnUrl = GetEffectiveReturnUrl(returnUrl, tenantId);
+                if (effectiveReturnUrl != "/")
                 {
-                    return Redirect(returnUrl);
+                    return Redirect(effectiveReturnUrl);
                 }
                 
                 // Fallback success message if no return URL
@@ -228,21 +409,58 @@ public class AuthPagesController : Controller
     }
     #endregion
 
+    #region Logout
+    [HttpGet("logout")]
+    public async Task<IActionResult> Logout(string? returnUrl = null)
+    {
+        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
+        if (errorResult != null) return errorResult;
+
+        // Clear authentication cookies with Safari compatibility
+        var cookieDomain = GetCookieDomain();
+        var clearCookieOptions = CreateSafariCompatibleCookieOptions(cookieDomain);
+        clearCookieOptions.Expires = DateTimeOffset.UtcNow.AddDays(-1); // Expire in the past to delete
+
+        // Clear both access and refresh tokens
+        Response.Cookies.Append("access_token", "", clearCookieOptions);
+        Response.Cookies.Append("refresh_token", "", clearCookieOptions);
+
+        _logger.LogInformation("Clearing cookies for user logout. Browser: {UserAgent}, Domain: {Domain}, SameSite: {SameSite}, Secure: {Secure}", 
+            Request.Headers.UserAgent.ToString(), clearCookieOptions.Domain ?? "null", clearCookieOptions.SameSite, clearCookieOptions.Secure);
+
+        _logger.LogInformation("User logged out successfully");
+
+        // Redirect to effective return URL or default
+        var effectiveReturnUrl = GetEffectiveReturnUrl(returnUrl, tenantId);
+        
+        // If returning to root, redirect to login instead
+        if (effectiveReturnUrl == "/")
+        {
+            return RedirectToAction("Login", new { successMessage = "You have been logged out successfully." });
+        }
+
+        return Redirect(effectiveReturnUrl);
+    }
+    #endregion
+
     #region Register
     [HttpGet("register")]
-    public async Task<IActionResult> Register()
+    public async Task<IActionResult> Register(string? returnUrl = null)
     {
         var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
         
+        ViewBag.ReturnUrl = returnUrl;
         return View();
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterInputModel model)
+    public async Task<IActionResult> Register(RegisterInputModel model, string? returnUrl = null)
     {
         var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
+
+        ViewBag.ReturnUrl = returnUrl;
 
         if (!ModelState.IsValid)
         {
@@ -257,7 +475,7 @@ public class AuthPagesController : Controller
                 Email = model.Email 
             };
 
-            var result = await _authService.Register(user, model.Password, null, tenantId);
+            var result = await _authService.Register(user, model.Password, null, tenantId, returnUrl);
 
             if (result.Succeeded)
             {
@@ -285,19 +503,22 @@ public class AuthPagesController : Controller
 
     #region Forgot Password
     [HttpGet("forgot-password")]
-    public async Task<IActionResult> ForgotPassword()
+    public async Task<IActionResult> ForgotPassword(string? returnUrl = null)
     {
         var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
         
+        ViewBag.ReturnUrl = returnUrl;
         return View();
     }
 
     [HttpPost("forgot-password")]
-    public async Task<IActionResult> ForgotPassword(ForgotPasswordInputModel model)
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordInputModel model, string? returnUrl = null)
     {
         var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
+
+        ViewBag.ReturnUrl = returnUrl;
 
         if (!ModelState.IsValid)
         {
@@ -307,7 +528,7 @@ public class AuthPagesController : Controller
         try
         {
 
-            await _authService.SendPasswordResetAsync(model.Email, null, tenantId);
+            await _authService.SendPasswordResetAsync(model.Email, null, tenantId, returnUrl);
 
             ViewBag.SuccessMessage = "If the email address is registered, a password reset email has been sent. Please check your inbox and follow the instructions.";
             ModelState.Clear();
@@ -324,10 +545,12 @@ public class AuthPagesController : Controller
 
     #region Reset Password
     [HttpGet("reset-password")]
-    public async Task<IActionResult> ResetPassword(string? userId = null, string? token = null)
+    public async Task<IActionResult> ResetPassword(string? userId = null, string? token = null, string? returnUrl = null)
     {
         var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
+
+        ViewBag.ReturnUrl = returnUrl;
 
         if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token))
         {
@@ -351,10 +574,12 @@ public class AuthPagesController : Controller
     }
 
     [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword(ResetPasswordInputModel model)
+    public async Task<IActionResult> ResetPassword(ResetPasswordInputModel model, string? returnUrl = null)
     {
         var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
+
+        ViewBag.ReturnUrl = returnUrl;
 
         if (!ModelState.IsValid)
         {
@@ -374,8 +599,11 @@ public class AuthPagesController : Controller
 
             if (result)
             {
-                ViewBag.SuccessMessage = "Password reset successfully! You can now sign in with your new password.";
-                return RedirectToAction("Login");
+                var effectiveReturnUrl = GetEffectiveReturnUrl(returnUrl, tenantId);
+                return RedirectToAction("Login", new { 
+                    successMessage = "Password reset successfully! You can now sign in with your new password.",
+                    returnUrl = effectiveReturnUrl != "/" ? effectiveReturnUrl : null
+                });
             }
             else
             {
@@ -394,10 +622,12 @@ public class AuthPagesController : Controller
 
     #region Register Invitation
     [HttpGet("register-invitation")]
-    public async Task<IActionResult> RegisterInvitation(string? email = null, string? token = null, string? invitationId = null)
+    public async Task<IActionResult> RegisterInvitation(string? email = null, string? token = null, string? invitationId = null, string? returnUrl = null)
     {
         var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
+
+        ViewBag.ReturnUrl = returnUrl;
 
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(token) || string.IsNullOrEmpty(invitationId))
         {
@@ -424,12 +654,13 @@ public class AuthPagesController : Controller
     }
 
     [HttpPost("register-invitation")]
-    public async Task<IActionResult> RegisterInvitation(RegisterInvitationInputModel model)
+    public async Task<IActionResult> RegisterInvitation(RegisterInvitationInputModel model, string? returnUrl = null)
     {
-        var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
+        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
         
         ViewBag.InvitationEmail = model.Email;
+        ViewBag.ReturnUrl = returnUrl;
 
         if (!ModelState.IsValid)
         {
@@ -455,8 +686,11 @@ public class AuthPagesController : Controller
 
             if (result.Succeeded)
             {
-                ViewBag.SuccessMessage = "Registration successful! You can now sign in with your credentials.";
-                return RedirectToAction("Login");
+                var effectiveReturnUrl = GetEffectiveReturnUrl(returnUrl, tenantId);
+                return RedirectToAction("Login", new { 
+                    successMessage = "Registration successful! You can now sign in with your credentials.",
+                    returnUrl = effectiveReturnUrl != "/" ? effectiveReturnUrl : null
+                });
             }
             else
             {
@@ -478,10 +712,12 @@ public class AuthPagesController : Controller
 
     #region Confirm Email
     [HttpGet("confirm-email")]
-    public async Task<IActionResult> ConfirmEmail(string? userId = null, string? token = null, string? email = null)
+    public async Task<IActionResult> ConfirmEmail(string? userId = null, string? token = null, string? email = null, string? returnUrl = null)
     {
         var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
+
+        ViewBag.ReturnUrl = returnUrl;
 
         if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token))
         {
@@ -525,10 +761,12 @@ public class AuthPagesController : Controller
     }
 
     [HttpPost("confirm-email")]
-    public async Task<IActionResult> ResendConfirmation(string email)
+    public async Task<IActionResult> ResendConfirmation(string email, string? returnUrl = null)
     {
         var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
         if (errorResult != null) return errorResult;
+
+        ViewBag.ReturnUrl = returnUrl;
 
         if (string.IsNullOrEmpty(email))
         {
@@ -539,7 +777,7 @@ public class AuthPagesController : Controller
         try
         {
 
-            var result = await _authService.SendEmailConfirmationAsync(email, null, tenantId);
+            var result = await _authService.SendEmailConfirmationAsync(email, null, tenantId, returnUrl);
 
             if (result)
             {

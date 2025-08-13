@@ -31,16 +31,17 @@
 
     <input type="hidden" asp-for="TenantId" />
     <input type="hidden" asp-for="SiteId" />
+    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
 
     <button type="submit" class="btn btn-primary">Login</button>
 </form>
 
 <div class="auth-links">
-    <a asp-action="ForgotPassword" class="auth-link">Forgot password?</a>
+    <a asp-action="ForgotPassword" asp-route-returnUrl="@ViewBag.ReturnUrl" class="auth-link">Forgot password?</a>
 </div>
 
 <div class="auth-links">
-    <span>Don't have an account? </span><a asp-action="Register" class="auth-link">Register</a>
+    <span>Don't have an account? </span><a asp-action="Register" asp-route-returnUrl="@ViewBag.ReturnUrl" class="auth-link">Register</a>
 </div>
 
 <style>

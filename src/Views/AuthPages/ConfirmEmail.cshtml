@@ -14,7 +14,7 @@
         <p>Your email address has been confirmed. You can now sign in to your account and start using all features.</p>
         
         <div class="action-buttons">
-            <a asp-action="Login" class="btn btn-primary">Sign In Now</a>
+            <a asp-action="Login" asp-route-returnUrl="@ViewBag.ReturnUrl" class="btn btn-primary">Sign In Now</a>
         </div>
     </div>
 }
@@ -26,17 +26,19 @@ else
         <p>The confirmation link is invalid or has expired. You can request a new confirmation email below.</p>
         
         <form method="post" asp-action="ResendConfirmation" class="resend-form">
+            <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
             <div class="form-group">
                 <label for="email">Email Address</label>
                 <input type="email" name="email" id="email" class="form-control" placeholder="Enter your email address" required />
             </div>
+            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
             <button type="submit" class="btn btn-primary">Resend Confirmation Email</button>
         </form>
         
         <div class="auth-links">
-            <a asp-action="Login" class="auth-link">← Back to Sign In</a>
+            <a asp-action="Login" asp-route-returnUrl="@ViewBag.ReturnUrl" class="auth-link">← Back to Sign In</a>
             <span>|</span>
-            <a asp-action="Register" class="auth-link">Create new account</a>
+            <a asp-action="Register" asp-route-returnUrl="@ViewBag.ReturnUrl" class="auth-link">Create new account</a>
         </div>
     </div>
 }

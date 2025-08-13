@@ -88,7 +88,16 @@ builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IBrandingService, BrandingService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailAwsSesService>();
-builder.Services.AddScoped<ISnsService, SnsService>();
+// Register SNS service conditionally based on configuration
+var snsEnabled = builder.Configuration.GetValue<bool>("AWS_SNS_ENABLED", true);
+if (snsEnabled)
+{
+    builder.Services.AddScoped<ISnsService, SnsService>();
+}
+else
+{
+    builder.Services.AddScoped<ISnsService, NoOpSnsService>();
+}
 builder.Services.AddScoped<UserHelper>();
 builder.Services.AddScoped<PermissionHelper>();
 

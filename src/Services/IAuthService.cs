@@ -8,7 +8,7 @@ namespace PlatformApi.Services;
 
 public interface IAuthService
 {
-    Task<IdentityResult> Register(AuthUser user, string password, string? subdomain = null, Guid? tenantId = null);
+    Task<IdentityResult> Register(AuthUser user, string password, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null);
     Task<AuthTokenBundle> Login(string email, string password, Guid? tenantId = null, Guid? siteId = null);
 
     //Task<AuthTokenBundle> ExternalLoginCallback(Guid? tenantId, Guid? siteId = null);
@@ -30,9 +30,9 @@ public interface IAuthService
     
     // Email-related methods
 
-    Task<bool> SendEmailConfirmationAsync(string email, string? subdomain = null, Guid? tenantId = null);
+    Task<bool> SendEmailConfirmationAsync(string email, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null);
     Task<bool> ConfirmEmailAsync(Guid userId, string token, string? subdomain = null, Guid? tenantId = null);
-    Task<bool> SendPasswordResetAsync(string email, string? subdomain = null, Guid? tenantId = null);
+    Task<bool> SendPasswordResetAsync(string email, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null);
     Task<bool> ResetPasswordAsync(Guid userId, string token, string newPassword, string? subdomain = null, Guid? tenantId = null);
     
     // Invitation-based registration

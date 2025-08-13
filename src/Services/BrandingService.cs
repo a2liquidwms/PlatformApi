@@ -23,7 +23,7 @@ public class BrandingService : IBrandingService
         _tenantService = tenantService;
         _configuration = configuration;
         _logger = logger;
-        _baseDomain = _configuration["UI_BASE_DOMAIN"] ?? throw new InvalidOperationException("UI_BASE_DOMAIN is required");
+        _baseDomain = _configuration["AUTH_BASE_DOMAIN"] ?? throw new InvalidOperationException("AUTH_BASE_DOMAIN is required");
     }
 
     public async Task<BrandingContext> GetBrandingContextAsync(string? subdomain = null, Guid? tenantId = null)
@@ -81,7 +81,7 @@ public class BrandingService : IBrandingService
 
     private string GetBaseUrl(string? subdomain)
     {
-        var baseDomain = _configuration["UI_BASE_DOMAIN"];
+        var baseDomain = _configuration["AUTH_BASE_DOMAIN"];
         
         var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
         var isDevelopment = environment.Equals("Development", StringComparison.OrdinalIgnoreCase);

@@ -39,7 +39,7 @@ public class AuthController : ControllerBase
         }
 
         var user = new AuthUser { UserName = request.Email, Email = request.Email };
-        var result = await _authService.Register(user, request.Password, null, tenantNullable);
+        var result = await _authService.Register(user, request.Password, null, tenantNullable, null);
 
         if (!result.Succeeded)
             return BadRequest(result.Errors);
@@ -183,7 +183,7 @@ public class AuthController : ControllerBase
                 tenantNullable = tenantId;
             }
 
-            var result = await _authService.SendEmailConfirmationAsync(request.Email, null, tenantNullable);
+            var result = await _authService.SendEmailConfirmationAsync(request.Email, null, tenantNullable, null);
 
             if (result)
             {

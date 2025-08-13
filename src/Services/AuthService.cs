@@ -56,14 +56,14 @@ public class AuthService : IAuthService
     }
 
     // Overload for Register with branding context
-    public async Task<IdentityResult> Register(AuthUser user, string password, string? subdomain = null, Guid? tenantId = null)
+    public async Task<IdentityResult> Register(AuthUser user, string password, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null)
     {
         var result = await _userManager.CreateAsync(user, password);
         
         if (result.Succeeded)
         {
             // Send email confirmation with branding context
-            await SendEmailConfirmationAsync(user.Email!, subdomain, tenantId);
+            await SendEmailConfirmationAsync(user.Email!, subdomain, tenantId, returnUrl);
             
             // Publish user-created message
             var userCreatedMessage = new UserCreatedMessage
@@ -264,7 +264,7 @@ public class AuthService : IAuthService
 
     // EMAIL METHODS WITH BRANDING SUPPORT
 
-    public async Task<bool> SendEmailConfirmationAsync(string email, string? subdomain = null, Guid? tenantId = null)
+    public async Task<bool> SendEmailConfirmationAsync(string email, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null)
     {
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null)
@@ -287,7 +287,13 @@ public class AuthService : IAuthService
         var encodedUserId = HttpUtility.UrlEncode(user.Id.ToString());
         
         // Use the branding context to build the confirmation URL
-        var confirmationUrl = $"{branding.BaseUrl}/confirm-email?token={encodedToken}&userId={encodedUserId}";
+        var confirmationUrl = $"{branding.BaseUrl}/auth/confirm-email?token={encodedToken}&userId={encodedUserId}";
+        
+        // Add return URL if provided
+        if (!string.IsNullOrEmpty(returnUrl))
+        {
+            confirmationUrl += $"&returnUrl={HttpUtility.UrlEncode(returnUrl)}";
+        }
 
         return await _emailService.SendEmailConfirmationAsync(user.Email!, confirmationUrl, user.UserName ?? user.Email!, branding);
     }
@@ -321,7 +327,7 @@ public class AuthService : IAuthService
         return false;
     }
 
-    public async Task<bool> SendPasswordResetAsync(string email, string? subdomain = null, Guid? tenantId = null)
+    public async Task<bool> SendPasswordResetAsync(string email, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null)
     {
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null || !user.EmailConfirmed)
@@ -338,7 +344,13 @@ public class AuthService : IAuthService
         var encodedUserId = HttpUtility.UrlEncode(user.Id.ToString());
         
         // Use the branding context to build the reset URL
-        var resetUrl = $"{branding.BaseUrl}/reset-password?token={encodedToken}&userId={encodedUserId}";
+        var resetUrl = $"{branding.BaseUrl}/auth/reset-password?token={encodedToken}&userId={encodedUserId}";
+        
+        // Add return URL if provided
+        if (!string.IsNullOrEmpty(returnUrl))
+        {
+            resetUrl += $"&returnUrl={HttpUtility.UrlEncode(returnUrl)}";
+        }
 
         return await _emailService.SendPasswordResetAsync(user.Email!, resetUrl, user.UserName ?? user.Email!, branding);
     }
