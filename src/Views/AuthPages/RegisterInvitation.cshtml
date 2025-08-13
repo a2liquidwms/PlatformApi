@@ -1,0 +1,84 @@
+@model RegisterInvitationInputModel
+@{
+    ViewData["Title"] = "Complete Registration";
+    Layout = "_AuthLayout";
+    var branding = ViewBag.Branding as BrandingContext;
+}
+
+<h2 class="page-title">Complete Registration</h2>
+
+<p class="form-description">
+    You've been invited to join @(branding?.SiteName ?? "Platform"). Complete your registration below to get started.
+</p>
+
+@if (!string.IsNullOrEmpty(ViewBag.InvitationEmail))
+{
+    <div class="invitation-info">
+        <strong>Email:</strong> @ViewBag.InvitationEmail
+    </div>
+}
+
+<form method="post" asp-action="RegisterInvitation">
+    <input type="hidden" asp-for="InvitationId" />
+    <input type="hidden" asp-for="Token" />
+    <input type="hidden" asp-for="Email" />
+    
+    <div class="form-group">
+        <label asp-for="Email">Email Address</label>
+        <input asp-for="Email" type="email" class="form-control" readonly />
+        <span asp-validation-for="Email" class="field-validation-error"></span>
+        <small class="form-text">This email address was provided in your invitation</small>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="Password">Password</label>
+        <input asp-for="Password" type="password" class="form-control" placeholder="Create a password (minimum 6 characters)" autocomplete="new-password" />
+        <span asp-validation-for="Password" class="field-validation-error"></span>
+        <small class="form-text">Password must be at least 6 characters long</small>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="ConfirmPassword">Confirm Password</label>
+        <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="Confirm your password" autocomplete="new-password" />
+        <span asp-validation-for="ConfirmPassword" class="field-validation-error"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Complete Registration</button>
+</form>
+
+<div class="auth-links">
+    <span>Already have an account?</span>
+    <a asp-action="Login" class="auth-link">Sign in here</a>
+</div>
+
+<style>
+    .form-description {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: var(--spacing-md);
+        text-align: center;
+        line-height: 1.5;
+    }
+
+    .invitation-info {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: var(--spacing-sm);
+        margin-bottom: var(--spacing-md);
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .form-control[readonly] {
+        background-color: var(--surface);
+        color: var(--text-secondary);
+    }
+
+    .form-text {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: var(--spacing-xs);
+        display: block;
+    }
+</style>

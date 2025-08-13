@@ -11,6 +11,7 @@ public class EmailAwsSesService : IEmailService
     private readonly IBrandingService _brandingService;
     private readonly string _fromDomain;
     private readonly string _configSet;
+    private readonly bool _isDevModeConsole;
 
     public EmailAwsSesService(
         IAmazonSimpleEmailService sesClient, 
@@ -23,6 +24,7 @@ public class EmailAwsSesService : IEmailService
         _brandingService = brandingService;
         _fromDomain = configuration["EMAIL_DOMAIN"] ?? throw new InvalidOperationException("EMAIL_DOMAIN is required");
         _configSet = configuration["EMAIL_CONFIGURATION_SET"] ?? "";
+        _isDevModeConsole = bool.Parse(configuration["EMAIL_DEV_MODE_CONSOLE"] ?? "false");
     }
 
     public async Task<bool> SendEmailConfirmationAsync(string email, string confirmationUrl, string userName, BrandingContext? branding = null)
@@ -67,6 +69,29 @@ public class EmailAwsSesService : IEmailService
             var sourceAddress = string.IsNullOrEmpty(branding.EmailFromName) 
                 ? $"no-reply@{_fromDomain}"
                 : $"{branding.EmailFromName} <no-reply@{_fromDomain}>";
+
+            if (_isDevModeConsole)
+            {
+                _logger.LogInformation(@"
+=== EMAIL DEV MODE - CONSOLE OUTPUT ===
+To: {ToEmail}
+From: {SourceAddress}
+Subject: {Subject}
+Branding: {SiteName}
+Configuration Set: {ConfigSet}
+
+--- HTML BODY ---
+{HtmlBody}
+
+--- TEXT BODY ---
+{TextBody}
+
+=== END EMAIL DEV MODE OUTPUT ===", 
+                    toEmail, sourceAddress, subject, branding.SiteName, _configSet, 
+                    htmlBody ?? "[No HTML Body]", textBody ?? "[No Text Body]");
+                
+                return true;
+            }
           
             var request = new SendEmailRequest
             {

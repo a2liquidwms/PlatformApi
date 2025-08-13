@@ -15,33 +15,25 @@ public class TenantHelper
 
     public Guid GetTenantId()
     {
-        Guid tenantId = default;
-
-        if (_httpContextAccessor.HttpContext != null &&
-            _httpContextAccessor.HttpContext.Items.TryGetValue(CommonConstants.TenantHttpContext, out var tIdObj))
+        var httpContext = _httpContextAccessor.HttpContext;
+        
+        if (httpContext?.User?.Identity?.IsAuthenticated == true)
         {
-            if (tIdObj is Guid guidValue)
+            var tenantIdClaim = httpContext.User.FindFirst(CommonConstants.ActiveTenantClaim);
+            if (tenantIdClaim != null && !string.IsNullOrWhiteSpace(tenantIdClaim.Value))
             {
-                tenantId = guidValue;
-            }
-            else if (tIdObj is string tIdString)
-            {
-                if (!Guid.TryParse(tIdString, out var parsedTenantId))
+                if (Guid.TryParse(tenantIdClaim.Value, out var tenantId))
                 {
-                    _logger.LogWarning("Invalid Tenant ID format in Context.Items: {TenantId}", tIdString);
-                    throw new InvalidDataException("Invalid Tenant ID format in Context.Items");
+                    return tenantId;
                 }
-
-                tenantId = parsedTenantId;
-            }
-            else
-            {
-                _logger.LogWarning("Unexpected Tenant ID type in Context.Items: {Type}",
-                    tIdObj?.GetType().Name ?? "null");
-                throw new InvalidDataException("Tenant ID not valid");
+                else
+                {
+                    _logger.LogWarning("Invalid Tenant ID format in JWT claim: {TenantId}", tenantIdClaim.Value);
+                    throw new InvalidDataException("Invalid Tenant ID format in JWT claim");
+                }
             }
         }
 
-        return tenantId;
+        return Guid.Empty;
     }
 }

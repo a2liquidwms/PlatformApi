@@ -17,27 +17,10 @@ public class TenantMiddleware
     {
         try
         {
-            // Extract tenant ID from header
-            if (context.Request.Headers.TryGetValue(CommonConstants.TenantHeaderKey, out var tenantIdValue) && 
-                !string.IsNullOrWhiteSpace(tenantIdValue))
-            {
-                // Validate GUID format
-                if (Guid.TryParse(tenantIdValue, out var tenantId))
-                {
-                    // Set tenant context
-                    context.Items[CommonConstants.TenantHttpContext] = tenantId;
-                    _logger.LogDebug("Tenant context set for tenant: {TenantId}", tenantId);
-                }
-                else
-                {
-                    _logger.LogWarning("Invalid tenant ID format in header: {TenantId}", tenantIdValue!);
-                }
-            }
-            else
-            {
-                _logger.LogDebug("No tenant header found for request: {Path}", context.Request.Path);
-            }
-
+            // Note: Tenant resolution is now handled via JWT claims in TenantHelper
+            // This middleware is kept for potential future use (e.g., subdomain extraction)
+            // or can be removed entirely if no longer needed
+            
             // Always continue to next middleware
             await _next(context);
         }

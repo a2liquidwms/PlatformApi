@@ -69,13 +69,13 @@ public class BrandingService : IBrandingService
     {
         return await Task.FromResult(new BrandingContext
         {
-            SiteName = "RedClay Services",
+            SiteName = "Platform",
             LogoPath = "",
             PrimaryColor = "#1d86f8",
             SubDomain = "", // default subdomain
             TenantId = null,
             BaseUrl = GetBaseUrl(null),
-            EmailFromName = _configuration["DEFAULT_SITE_NAME"] ?? "RedClay Auth"
+            EmailFromName = _configuration["DEFAULT_SITE_NAME"] ?? "Platform Auth"
         });
     }
 

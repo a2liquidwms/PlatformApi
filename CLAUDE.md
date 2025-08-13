@@ -128,6 +128,58 @@ The project includes a `TempStarter` directory containing common utilities and m
 
 When working with this codebase, be aware of the multi-tenant nature - most operations should consider tenant context, and user permissions are scoped to specific tenants.
 
+## Authentication Pages Architecture
+
+### MVC Views Pattern
+This application serves authentication pages using **MVC Views** (not Razor Pages):
+
+**Structure:**
+- **Controller**: `AuthPagesController` at route `[Route("auth")]`
+- **Views**: `/src/Views/AuthPages/` (Login.cshtml, Register.cshtml, etc.)
+- **Layout**: `/src/Views/Shared/_AuthLayout.cshtml`
+- **Styling**: `/src/wwwroot/css/auth.css`
+
+**Routes:**
+- `GET/POST /auth/login` - Login page
+- `GET/POST /auth/register` - Registration page  
+- `GET/POST /auth/forgot-password` - Password reset request
+- `GET/POST /auth/reset-password` - Password reset form
+- `GET/POST /auth/confirm-email` - Email confirmation
+- `GET/POST /auth/register-invitation` - Invitation-based registration
+
+### Error Display Pattern
+Authentication pages use a specific error display pattern:
+
+**Form Validation Errors**: 
+- Use `asp-validation-summary="ModelOnly"` in individual views for form-level errors
+- Field-specific errors use `<span asp-validation-for="Property">` under each input
+
+**General Errors**: 
+- Use `ModelState.AddModelError(string.Empty, "message")` in controllers
+- Layout does NOT duplicate ModelState errors to avoid double-display
+- Success/Error messages use `ViewBag.SuccessMessage` and `ViewBag.ErrorMessage`
+
+**Styling**: 
+- All validation errors styled in red using `var(--error)` color
+- Validation summary gets prominent red border and background
+- Field errors appear directly under form inputs
+
+### Tenant Resolution for Auth Pages
+Authentication pages handle tenant context differently since users are not yet authenticated:
+
+**Authenticated Pages**: Use JWT claims with `TenantHelper.GetTenantId()`
+**Auth Pages**: Use subdomain-based lookup with database queries
+- Check `X-Tenant-Subdomain` header first, then `tenant=` query parameter
+- Invalid tenants get default branding (no error pages)
+- Uses `ValidateTenantAndSetupBrandingAsync()` helper in controller
+
+### Cross-Subdomain Authentication
+The system supports cross-subdomain authentication for React apps:
+- API serves auth pages at `api.mysite.com/auth/login`
+- React apps at `tenant1.ui.mysite.com` redirect to auth pages
+- Successful login sets cookies with `Domain=.mysite.com` for cross-subdomain access
+- Cookies include both access and refresh tokens
+
 ## Claude Code Guidelines
 
 ### Exception Handling Pattern

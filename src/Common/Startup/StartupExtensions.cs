@@ -62,7 +62,7 @@ public static class StartupExtensions
             client.BaseAddress = new Uri(permissionBaseUrl);
         });
 
-        services.AddControllers(options =>
+        services.AddControllersWithViews(options =>
         {
             //Add a global AuthorizeFilter
             var policy = new AuthorizationPolicyBuilder()

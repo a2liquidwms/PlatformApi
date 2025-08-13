@@ -79,6 +79,7 @@ builder.Services.PermissionCheckServices(builder.Configuration);
 builder.Services.AddHealthChecks();
 builder.Services.AddAutoMapper(typeof(Program));
 builder.Services.AddMemoryCache();
+// Removed Razor Pages - using MVC Controllers instead
 
 builder.Services.AddScoped<IUnitOfWork<PlatformDbContext>, UnitOfWork<PlatformDbContext>>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -124,7 +125,12 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 
 app.MapHealthChecks("/health");
 
+app.UseStaticFiles(); // Enable serving static files (CSS, etc.)
+
 app.ConfigureCors();  // common services
+
+// Add local tenant header middleware for development
+app.UseMiddleware<PlatformApi.Middleware.LocalTenantHeaderMiddleware>();
 
 //if using auth
 app.UseCookiePolicy();

@@ -6,7 +6,9 @@
       "Bash(mkdir:*)",
       "Bash(cp:*)",
       "Bash(find:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "WebFetch(domain:learn.microsoft.com)",
+      "WebFetch(domain:www.learnrazorpages.com)"
     ],
     "deny": []
   }

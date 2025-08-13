@@ -543,8 +543,8 @@ public class AuthService : IAuthService
             throw new NotFoundException("User not found");
         }
 
-        // Validate user has access to this tenant using UserService
-        var hasAccess = await _userService.HasTenantAccess(user.Id, tenantId);
+        // Validate user has access to this tenant using UserService with forLogin=true
+        var hasAccess = await _userService.HasTenantAccess(user.Id, tenantId, forLogin: true);
         
         if (!hasAccess)
         {
@@ -581,8 +581,13 @@ public class AuthService : IAuthService
             throw new NotFoundException("Site not found or inactive");
         }
 
-        // Validate user has access to this site
-        await ValidateUserSiteAccess(user, siteId, site.TenantId);
+        // Validate user has access to this site with forLogin=true
+        var hasSiteAccess = await _userService.HasSiteAccess(user.Id, siteId, site.TenantId, forLogin: true);
+        
+        if (!hasSiteAccess)
+        {
+            throw new InvalidDataException("Site Access denied");
+        }
 
         // Revoke all existing refresh tokens for this user
         var existingTokens = _context.RefreshTokens.Where(rt => rt.UserId == user.Id && !rt.IsRevoked);
