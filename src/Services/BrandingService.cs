@@ -23,7 +23,7 @@ public class BrandingService : IBrandingService
         _tenantService = tenantService;
         _configuration = configuration;
         _logger = logger;
-        _baseDomain = _configuration["AUTH_BASE_DOMAIN"] ?? throw new InvalidOperationException("AUTH_BASE_DOMAIN is required");
+        _baseDomain = _configuration["AUTH_EMAIL_LINK_DOMAIN"] ?? throw new InvalidOperationException("AUTH_BASE_DOMAIN is required");
     }
 
     public async Task<BrandingContext> GetBrandingContextAsync(string? subdomain = null, Guid? tenantId = null)
@@ -81,17 +81,15 @@ public class BrandingService : IBrandingService
 
     private string GetBaseUrl(string? subdomain)
     {
-        var baseDomain = _configuration["AUTH_BASE_DOMAIN"];
-        
         var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
         var isDevelopment = environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
 
         if (isDevelopment)
         {
             _logger.LogDebug("Using development environment for Email Base URL");
-            return $"http://{baseDomain}";
+            return subdomain != null ? $"http://{subdomain}.{_baseDomain}" : $"http://{_baseDomain}";
         }
 
-        return subdomain != null ? $"https://{subdomain}.{baseDomain}" : $"https://{baseDomain}";
+        return subdomain != null ? $"https://{subdomain}.{_baseDomain}" : $"https://{_baseDomain}";
     }
 }

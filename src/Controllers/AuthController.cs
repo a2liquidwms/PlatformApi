@@ -31,12 +31,7 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterUserRequest request)
     {
-        Guid? tenantNullable = null;
-        var tenantId = _tenantHelper.GetTenantId();
-        if (tenantId != Guid.Empty)
-        {
-            tenantNullable = tenantId;
-        }
+        var tenantNullable = request.TenantId;
 
         var user = new AuthUser { UserName = request.Email, Email = request.Email };
         var result = await _authService.Register(user, request.Password, null, tenantNullable, null);
@@ -147,14 +142,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            Guid? tenantNullable = null;
-            var tenantId = _tenantHelper.GetTenantId();
-            if (tenantId != Guid.Empty)
-            {
-                tenantNullable = tenantId;
-            }
-
-            var result = await _authService.ConfirmEmailAsync(request.UserId, request.Token, null, tenantNullable);
+            var result = await _authService.ConfirmEmailAsync(request.UserId, request.Token, null, request.TenantId);
 
             if (result)
             {
@@ -176,14 +164,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            Guid? tenantNullable = null;
-            var tenantId = _tenantHelper.GetTenantId();
-            if (tenantId != Guid.Empty)
-            {
-                tenantNullable = tenantId;
-            }
-
-            var result = await _authService.SendEmailConfirmationAsync(request.Email, null, tenantNullable, null);
+            var result = await _authService.SendEmailConfirmationAsync(request.Email, null, request.TenantId, null);
 
             if (result)
             {
@@ -206,14 +187,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            Guid? tenantNullable = null;
-            var tenantId = _tenantHelper.GetTenantId();
-            if (tenantId != Guid.Empty)
-            {
-                tenantNullable = tenantId;
-            }
-
-            await _authService.SendPasswordResetAsync(request.Email, null, tenantNullable);
+            await _authService.SendPasswordResetAsync(request.Email, null, request.TenantId);
 
             // Always return success to prevent email enumeration
             return Ok(new { Message = "If the email address is registered, a password reset email has been sent." });
@@ -231,15 +205,8 @@ public class AuthController : ControllerBase
     {
         try
         {
-            Guid? tenantNullable = null;
-            var tenantId = _tenantHelper.GetTenantId();
-            if (tenantId != Guid.Empty)
-            {
-                tenantNullable = tenantId;
-            }
-
             var result = await _authService.ResetPasswordAsync(request.UserId, request.Token, request.NewPassword, null,
-                tenantNullable);
+                request.TenantId);
 
             if (result)
             {
@@ -254,57 +221,6 @@ public class AuthController : ControllerBase
             return BadRequest("Failed to reset password. Please try again or request a new password reset email.");
         }
     }
-
-    // private bool IsValidRedirectUrl(string url)
-    // {
-    //     try
-    //     {
-    //         // Parse the URL to check its domain
-    //         var uri = new Uri(url);
-    //
-    //         // Get allowed domains from environment variable
-    //         var allowedDomainsEnv = Environment.GetEnvironmentVariable("ALLOWED_REDIRECT_DOMAINS") ?? "";
-    //
-    //         return IsHostAllowed(uri.ToString(), allowedDomainsEnv);
-    //     }
-    //     catch
-    //     {
-    //         // If URL is malformed or any other error
-    //         return false;
-    //     }
-    // }
-
-    // private bool IsHostAllowed(string host, string allowedDomainsString)
-    // {
-    //     // If wildcard is specified, allow all domains
-    //     if (allowedDomainsString.Equals("*"))
-    //     {
-    //         return true;
-    //     }
-    //
-    //     // If empty, use a default domain (optional - you might want to be strict and return false)
-    //     if (string.IsNullOrWhiteSpace(allowedDomainsString))
-    //     {
-    //         _logger.LogWarning("Missing Config - allowed domain string: {AllowedDomainsString}", allowedDomainsString);
-    //         return false;
-    //     }
-    //     // if (string.IsNullOrWhiteSpace(allowedDomainsString))
-    //     // {
-    //     //     var defaultDomain = Environment.GetEnvironmentVariable("APPLICATION_DOMAIN");
-    //     //     return !string.IsNullOrEmpty(defaultDomain) && 
-    //     //            (host.Equals(defaultDomain, StringComparison.OrdinalIgnoreCase) || 
-    //     //             host.EndsWith($".{defaultDomain}", StringComparison.OrdinalIgnoreCase));
-    //     // }
-    //
-    //     // Split the comma-separated domains and check if host matches or is a subdomain
-    //     var allowedDomains = allowedDomainsString.Split(',', StringSplitOptions.RemoveEmptyEntries)
-    //         .Select(d => d.Trim())
-    //         .ToList();
-    //
-    //     return allowedDomains.Any(domain =>
-    //         host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
-    //         host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase));
-    // }
 
     // [HttpPost("link-provider")]
     // public async Task<IActionResult> LinkProvider([FromBody] ExternalLoginRequest request)
@@ -345,8 +261,7 @@ public class AuthController : ControllerBase
     //         return BadRequest();
     //     }
     // }
-
-
+    
     [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
@@ -387,12 +302,13 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpGet("my/permissions")]
-    public async Task<ActionResult<IEnumerable<string>>> GetMyPermissions([FromQuery] Guid? tenantId = null,
-        [FromQuery] Guid? siteId = null)
+    public async Task<ActionResult<IEnumerable<string>>> GetMyPermissions()
     {
         try
         {
             var userId = _userHelper.GetCurrentUserId();
+            var tenantId = _tenantHelper.GetTenantId() != Guid.Empty ? _tenantHelper.GetTenantId() : (Guid?)null;
+            var siteId = _tenantHelper.GetSiteId() != Guid.Empty ? _tenantHelper.GetSiteId() : (Guid?)null;
             var permissions = await _authService.GetUserPermissionsAsync(userId, tenantId, siteId);
             return Ok(permissions);
         }
@@ -417,12 +333,13 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpGet("my/roles")]
-    public async Task<ActionResult<IEnumerable<RoleDto>>> GetMyRoles([FromQuery] Guid? tenantId = null,
-        [FromQuery] Guid? siteId = null)
+    public async Task<ActionResult<IEnumerable<RoleDto>>> GetMyRoles()
     {
         try
         {
             var userId = _userHelper.GetCurrentUserId();
+            var tenantId = _tenantHelper.GetTenantId() != Guid.Empty ? _tenantHelper.GetTenantId() : (Guid?)null;
+            var siteId = _tenantHelper.GetSiteId() != Guid.Empty ? _tenantHelper.GetSiteId() : (Guid?)null;
             var roles = await _authService.GetUserRolesAsync(userId, tenantId, siteId);
             return Ok(roles);
         }

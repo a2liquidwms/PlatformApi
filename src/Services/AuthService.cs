@@ -287,7 +287,7 @@ public class AuthService : IAuthService
         var encodedUserId = HttpUtility.UrlEncode(user.Id.ToString());
         
         // Use the branding context to build the confirmation URL
-        var confirmationUrl = $"{branding.BaseUrl}/auth/confirm-email?token={encodedToken}&userId={encodedUserId}";
+        var confirmationUrl = $"{branding.BaseUrl}/confirm-email?token={encodedToken}&userId={encodedUserId}";
         
         // Add return URL if provided
         if (!string.IsNullOrEmpty(returnUrl))
@@ -344,7 +344,7 @@ public class AuthService : IAuthService
         var encodedUserId = HttpUtility.UrlEncode(user.Id.ToString());
         
         // Use the branding context to build the reset URL
-        var resetUrl = $"{branding.BaseUrl}/auth/reset-password?token={encodedToken}&userId={encodedUserId}";
+        var resetUrl = $"{branding.BaseUrl}/reset-password?token={encodedToken}&userId={encodedUserId}";
         
         // Add return URL if provided
         if (!string.IsNullOrEmpty(returnUrl))

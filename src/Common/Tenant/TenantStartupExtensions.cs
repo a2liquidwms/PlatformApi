@@ -6,17 +6,12 @@ public static class TenantStartupExtensions
 {
     public static void TenantCheckServices(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton<IAuthorizationHandler, TenantAuthHandler>();
         services.AddScoped<IAuthorizationHandler, TenantAccessAuthHandler>();
         services.AddScoped<IAuthorizationHandler, SiteAccessAuthHandler>();
         services.AddScoped<TenantHelper>();
 
         services.AddAuthorization(options =>
         {
-            options.AddPolicy("RequireTenant", policy =>
-                policy.Requirements.Add(new TenantRequirement()));
-
-            // New policy - checks if authenticated user has access to tenant
             options.AddPolicy("RequireTenantAccess", policy =>
                 policy.Requirements.Add(new TenantAccessRequirement()));
 

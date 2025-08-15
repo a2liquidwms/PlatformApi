@@ -36,4 +36,28 @@ public class TenantHelper
 
         return Guid.Empty;
     }
+
+    public Guid GetSiteId()
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        
+        if (httpContext?.User?.Identity?.IsAuthenticated == true)
+        {
+            var siteIdClaim = httpContext.User.FindFirst(CommonConstants.ActiveSiteClaim);
+            if (siteIdClaim != null && !string.IsNullOrWhiteSpace(siteIdClaim.Value))
+            {
+                if (Guid.TryParse(siteIdClaim.Value, out var siteId))
+                {
+                    return siteId;
+                }
+                else
+                {
+                    _logger.LogWarning("Invalid Site ID format in JWT claim: {SiteId}", siteIdClaim.Value);
+                    throw new InvalidDataException("Invalid Site ID format in JWT claim");
+                }
+            }
+        }
+
+        return Guid.Empty;
+    }
 }

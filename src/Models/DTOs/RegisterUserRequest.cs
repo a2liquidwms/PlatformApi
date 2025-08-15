@@ -6,4 +6,5 @@ public class RegisterUserRequest
 
     public required string Password { get; set; }
     
+    public Guid? TenantId { get; set; }
 }
