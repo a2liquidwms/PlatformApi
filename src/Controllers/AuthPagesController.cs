@@ -19,6 +19,7 @@ public class AuthPagesController : Controller
     private readonly TenantHelper _tenantHelper;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthPagesController> _logger;
+    private readonly string _defaultReturnUrl;
 
     public AuthPagesController(
         IAuthService authService,
@@ -34,170 +35,128 @@ public class AuthPagesController : Controller
         _tenantHelper = tenantHelper;
         _configuration = configuration;
         _logger = logger;
+
+        // Validate required environment variables at startup
+        _defaultReturnUrl = _configuration["DEFAULT_RETURN_URL"] ?? throw new InvalidOperationException("DEFAULT_RETURN_URL environment variable is not configured");
     }
 
 
-    private async Task<(Guid TenantId, string? ErrorMessage)> GetTenantIdForAuthPagesAsync()
+    private async Task<Guid?> GetTenantIdForAuthPagesAsync()
     {
-        string? subdomain = null;
-
-        // First try to get tenant subdomain from X-Tenant-Subdomain header (for nginx/production scenarios)
-        if (Request.Headers.TryGetValue(CommonConstants.TenantHeaderSubdomain, out var headerSubdomainValue) &&
-            !string.IsNullOrWhiteSpace(headerSubdomainValue))
-        {
-            subdomain = headerSubdomainValue;
-        }
-        // Fallback to query parameter (for local development)
-        else if (Request.Query.TryGetValue("tenant", out var tenantSubdomainValue) && 
-            !string.IsNullOrWhiteSpace(tenantSubdomainValue))
-        {
-            subdomain = tenantSubdomainValue;
-        }
+        string? subdomain = ExtractSubdomainFromRequest();
 
         // If we have a subdomain, look up the tenant
         if (!string.IsNullOrWhiteSpace(subdomain))
         {
-            try
+            var tenantConfig = await _tenantService.GetTenantConfigBySubdomain(subdomain);
+            if (tenantConfig == null)
             {
-                var tenantConfig = await _tenantService.GetTenantConfigBySubdomain(subdomain);
-                if (tenantConfig != null)
-                {
-                    return (tenantConfig.TenantId, null);
-                }
-                else
-                {
-                    _logger.LogWarning("Tenant not found for subdomain: {Subdomain}", subdomain);
-                    return (Guid.Empty, $"Tenant '{subdomain}' not found. Please check the tenant name or contact your administrator.");
-                }
+                _logger.LogWarning("Tenant not found for subdomain: {Subdomain}", subdomain);
+                throw new NotFoundException($"Tenant '{subdomain}' not found. Please check the tenant name or contact your administrator.");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error looking up tenant for subdomain: {Subdomain}", subdomain);
-                return (Guid.Empty, "An error occurred while looking up the tenant. Please try again later.");
-            }
+            return tenantConfig.TenantId;
         }
 
-        return (Guid.Empty, null);
-    }
-
-
-    /// <summary>
-    /// Resolves the effective return URL using fallback hierarchy:
-    /// 1. Provided returnUrl (if valid)
-    /// 2. System default from environment variable
-    /// 3. Root fallback ("/")
-    /// </summary>
-    private string GetEffectiveReturnUrl(string? providedReturnUrl, Guid? tenantId = null)
-    {
-        // 1. Use provided returnUrl if valid
-        if (!string.IsNullOrEmpty(providedReturnUrl) && IsValidReturnUrl(providedReturnUrl, tenantId))
-        {
-            return providedReturnUrl;
-        }
-
-        // 2. Fall back to system default
-        var defaultReturnUrl = _configuration["DEFAULT_RETURN_URL"];
-        if (!string.IsNullOrEmpty(defaultReturnUrl) && IsValidReturnUrl(defaultReturnUrl, tenantId))
-        {
-            return defaultReturnUrl;
-        }
-
-        // 3. Final fallback to root
-        return "/";
+        // No subdomain found - use default platform tenant
+        return null;
     }
 
     /// <summary>
-    /// Validates if a return URL is safe to redirect to.
-    /// Supports local URLs, configured default URL, and tenant-specific URLs.
+    /// Extracts the tenant subdomain from the current request URL using AUTH_BASE_DOMAIN as reference.
+    /// Example: tenant1.auth.myapp.local:5201 with base auth.myapp.local:5201 returns "tenant1"
     /// </summary>
-    private bool IsValidReturnUrl(string? returnUrl, Guid? tenantId = null)
-    {
-        if (string.IsNullOrEmpty(returnUrl)) return false;
-
-        try
-        {
-            // Allow local URLs (development)
-            if (Url.IsLocalUrl(returnUrl)) return true;
-
-            // Allow configured default URL
-            var defaultUrl = _configuration["DEFAULT_RETURN_URL"];
-            if (!string.IsNullOrEmpty(defaultUrl) && returnUrl.Equals(defaultUrl, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            // Allow tenant-specific URLs if we have tenant context
-            if (tenantId.HasValue && IsValidTenantUrl(returnUrl, tenantId.Value))
-            {
-                return true;
-            }
-
-            // Allow configured auth domain pattern
-            var authBaseDomain = _configuration["AUTH_BASE_DOMAIN"];
-            if (!string.IsNullOrEmpty(authBaseDomain))
-            {
-                var uri = new Uri(returnUrl);
-                return uri.Host.Contains(authBaseDomain.Split(':')[0]);
-            }
-
-            return false;
-        }
-        catch (UriFormatException)
-        {
-            // Invalid URI format
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Validates if a URL belongs to a specific tenant's subdomain.
-    /// </summary>
-    private bool IsValidTenantUrl(string returnUrl, Guid tenantId)
+    private string? ExtractSubdomainFromRequest()
     {
         try
         {
-            var uri = new Uri(returnUrl);
-            var authBaseDomain = _configuration["AUTH_BASE_DOMAIN"];
+            var currentHost = Request.Host.Value;
+            var baseDomain = _configuration["AUTH_BASE_DOMAIN"];
             
-            if (string.IsNullOrEmpty(authBaseDomain)) return false;
-
-            // For development (localhost), allow any localhost URL
-            if (authBaseDomain.Contains("localhost"))
+            if (string.IsNullOrWhiteSpace(baseDomain))
             {
-                return uri.Host.Contains("localhost");
+                _logger.LogWarning("AUTH_BASE_DOMAIN not configured");
+                return null;
             }
 
-            // For production, validate tenant subdomain pattern
-            // Expected format: https://tenant1.ui.domain.com (where AUTH_BASE_DOMAIN might be api.domain.com)
-            var baseDomain = authBaseDomain.Split(':')[0];
-            return uri.Host.EndsWith($".{baseDomain}") || uri.Host.Equals(baseDomain, StringComparison.OrdinalIgnoreCase);
+            _logger.LogDebug("Extracting subdomain from host: {CurrentHost}, base: {BaseDomain}", currentHost, baseDomain);
+
+            // If current host is exactly the base domain, no subdomain
+            if (currentHost.Equals(baseDomain, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            // Extract subdomain by removing base domain suffix
+            if (currentHost.EndsWith($".{baseDomain}", StringComparison.OrdinalIgnoreCase))
+            {
+                var subdomain = currentHost.Substring(0, currentHost.Length - baseDomain.Length - 1);
+                _logger.LogDebug("Extracted subdomain: {Subdomain}", subdomain);
+                return subdomain;
+            }
+
+            _logger.LogDebug("No subdomain pattern match for host: {CurrentHost}", currentHost);
+            return null;
         }
-        catch (UriFormatException)
+        catch (Exception ex)
         {
-            return false;
+            _logger.LogError(ex, "Error extracting subdomain from request");
+            return null;
         }
     }
+
+
 
     /// <summary>
     /// Helper method to validate tenant and setup branding for auth pages.
-    /// Returns null if valid tenant found or no tenant specified.
-    /// Returns IActionResult redirect to error page if tenant lookup fails.
+    /// Returns tenant ID if found, null for default platform.
+    /// Throws NotFoundException if tenant subdomain lookup fails.
     /// </summary>
-    private async Task<(IActionResult? ErrorResult, Guid? TenantId)> ValidateTenantAndSetupBrandingAsync()
+    private async Task<Guid?> ValidateTenantAndSetupBrandingAsync()
     {
-        var (foundTenantId, tenantError) = await GetTenantIdForAuthPagesAsync();
-        
-        // If tenant lookup failed, redirect to error page
-        if (!string.IsNullOrEmpty(tenantError))
-        {
-            return (RedirectToAction("TenantError", new { message = tenantError }), null);
-        }
-        
-        var tenantId = foundTenantId != Guid.Empty ? foundTenantId : (Guid?)null;
+        var tenantId = await GetTenantIdForAuthPagesAsync();
         ViewBag.Branding = await _brandingService.GetBrandingContextAsync(null, tenantId);
-        
-        return (null, tenantId);
+        return tenantId;
     }
+
+    /// <summary>
+    /// Gets a safe redirect URL that only allows configured UI domains.
+    /// Falls back to DEFAULT_RETURN_URL if returnUrl is not provided or not allowed.
+    /// </summary>
+    private string GetSafeRedirectUrl(string? returnUrl)
+    {
+        if (!string.IsNullOrEmpty(returnUrl) && IsAllowedDomain(returnUrl))
+        {
+            return returnUrl;
+        }
+        return _defaultReturnUrl;
+    }
+
+    /// <summary>
+    /// Validates if a URL belongs to an allowed domain for redirects.
+    /// Only allows configured UI domains for security.
+    /// </summary>
+    private bool IsAllowedDomain(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+
+            // Check against AUTH_COOKIE_DOMAIN (root domain for UI apps)
+            var cookieDomain = _configuration["AUTH_COOKIE_DOMAIN"];
+            if (!string.IsNullOrEmpty(cookieDomain))
+            {
+                var rootDomain = cookieDomain.TrimStart('.'); // Remove leading dot if present
+                return uri.Host.EndsWith($".{rootDomain}") || uri.Host.Equals(rootDomain, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return false;
+        }
+        catch (UriFormatException)
+        {
+            return false;
+        }
+    }
+
 
     /// <summary>
     /// Clears authentication cookies by setting them to expired
@@ -261,10 +220,16 @@ public class AuthPagesController : Controller
     [HttpGet("login")]
     public async Task<IActionResult> Login(string? returnUrl = null, string? successMessage = null)
     {
-        var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        try
+        {
+            await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
         
-        ViewBag.ReturnUrl = returnUrl;
+        ViewBag.ReturnUrl = GetSafeRedirectUrl(returnUrl);
         
         if (!string.IsNullOrEmpty(successMessage))
         {
@@ -277,12 +242,18 @@ public class AuthPagesController : Controller
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginInputModel model, string? returnUrl = null)
     {
-        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        Guid? tenantId;
+        try
+        {
+            tenantId = await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
         
-        ViewBag.ReturnUrl = returnUrl;
-
-        _logger.LogInformation("DEBUG Login POST - returnUrl parameter: '{ReturnUrl}'", returnUrl ?? "NULL");
+        var safeReturnUrl = GetSafeRedirectUrl(returnUrl);
+        ViewBag.ReturnUrl = safeReturnUrl;
 
         if (!ModelState.IsValid)
         {
@@ -295,34 +266,23 @@ public class AuthPagesController : Controller
 
             if (tokenBundle != null)
             {
-                // Clear any existing authentication cookies before setting new ones
                 ClearAuthCookies();
-                
-                // Generate new authentication cookies
                 GenerateAuthCookies(tokenBundle);
                 
-                // Determine redirect URL: use provided returnUrl or fall back to DEFAULT_RETURN_URL
-                var redirectUrl = !string.IsNullOrEmpty(returnUrl) 
-                    ? returnUrl 
-                    : _configuration["DEFAULT_RETURN_URL"];
-
-                _logger.LogInformation("DEBUG - Redirect logic. returnUrl: '{ReturnUrl}', defaultUrl: '{DefaultUrl}', finalUrl: '{FinalUrl}'", 
-                    returnUrl ?? "NULL", _configuration["DEFAULT_RETURN_URL"] ?? "NULL", redirectUrl ?? "NULL");
-                
-                if (!string.IsNullOrEmpty(redirectUrl))
+                // For React apps, append tokens to URL fragment
+                var redirectUrl = safeReturnUrl;
+                if (safeReturnUrl.Contains("ui.myapp.local"))
                 {
-                    _logger.LogInformation("Redirecting to: {RedirectUrl}", redirectUrl);
-                    return Redirect(redirectUrl);
+                    redirectUrl = $"{safeReturnUrl}#access_token={tokenBundle.AccessToken}&refresh_token={tokenBundle.RefreshToken}&expires_in={tokenBundle.Expires}";
                 }
                 
-                // Final fallback if no URLs configured
-                _logger.LogInformation("No redirect URLs configured, showing success message");
-                ViewBag.SuccessMessage = "Login successful! You can now access the application.";
-                return View(model);
+                _logger.LogInformation("Redirecting to: {RedirectUrl}", redirectUrl);
+                return Redirect(redirectUrl);
             }
             else
             {
                 ModelState.AddModelError(string.Empty, "Invalid Login");
+                ViewBag.ReturnUrl = safeReturnUrl;
                 return View(model);
             }
         }
@@ -330,6 +290,7 @@ public class AuthPagesController : Controller
         {
             _logger.LogError(ex, "Login failed for user {Email}", model.Email);
             ModelState.AddModelError(string.Empty, "Invalid Login");
+            ViewBag.ReturnUrl = safeReturnUrl;
             return View(model);
         }
     }
@@ -339,24 +300,24 @@ public class AuthPagesController : Controller
     [HttpGet("logout")]
     public async Task<IActionResult> Logout(string? returnUrl = null)
     {
-        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        try
+        {
+            await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
 
         // Clear authentication cookies
         ClearAuthCookies();
 
         _logger.LogInformation("User logged out successfully");
 
-        // Redirect to effective return URL or default
-        var effectiveReturnUrl = GetEffectiveReturnUrl(returnUrl, tenantId);
-        
-        // If returning to root, redirect to login instead
-        if (effectiveReturnUrl == "/")
-        {
-            return RedirectToAction("Login", new { successMessage = "You have been logged out successfully." });
-        }
+        // Redirect to safe return URL or default
+        var safeReturnUrl = GetSafeRedirectUrl(returnUrl);
 
-        return Redirect(effectiveReturnUrl);
+        return Redirect(safeReturnUrl);
     }
     #endregion
 
@@ -364,20 +325,34 @@ public class AuthPagesController : Controller
     [HttpGet("register")]
     public async Task<IActionResult> Register(string? returnUrl = null)
     {
-        var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        try
+        {
+            await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
         
-        ViewBag.ReturnUrl = returnUrl;
+        ViewBag.ReturnUrl = GetSafeRedirectUrl(returnUrl);
         return View();
     }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterInputModel model, string? returnUrl = null)
     {
-        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        Guid? tenantId;
+        try
+        {
+            tenantId = await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
 
-        ViewBag.ReturnUrl = returnUrl;
+        var safeReturnUrl = GetSafeRedirectUrl(returnUrl);
+        ViewBag.ReturnUrl = safeReturnUrl;
 
         if (!ModelState.IsValid)
         {
@@ -392,7 +367,7 @@ public class AuthPagesController : Controller
                 Email = model.Email 
             };
 
-            var result = await _authService.Register(user, model.Password, null, tenantId, returnUrl);
+            var result = await _authService.Register(user, model.Password, null, tenantId, safeReturnUrl);
 
             if (result.Succeeded)
             {
@@ -422,20 +397,34 @@ public class AuthPagesController : Controller
     [HttpGet("forgot-password")]
     public async Task<IActionResult> ForgotPassword(string? returnUrl = null)
     {
-        var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        try
+        {
+            await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
         
-        ViewBag.ReturnUrl = returnUrl;
+        ViewBag.ReturnUrl = GetSafeRedirectUrl(returnUrl);
         return View();
     }
 
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordInputModel model, string? returnUrl = null)
     {
-        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        Guid? tenantId;
+        try
+        {
+            tenantId = await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
 
-        ViewBag.ReturnUrl = returnUrl;
+        var safeReturnUrl = GetSafeRedirectUrl(returnUrl);
+        ViewBag.ReturnUrl = safeReturnUrl;
 
         if (!ModelState.IsValid)
         {
@@ -445,7 +434,7 @@ public class AuthPagesController : Controller
         try
         {
 
-            await _authService.SendPasswordResetAsync(model.Email, null, tenantId, returnUrl);
+            await _authService.SendPasswordResetAsync(model.Email, null, tenantId, safeReturnUrl);
 
             ViewBag.SuccessMessage = "If the email address is registered, a password reset email has been sent. Please check your inbox and follow the instructions.";
             ModelState.Clear();
@@ -464,10 +453,16 @@ public class AuthPagesController : Controller
     [HttpGet("reset-password")]
     public async Task<IActionResult> ResetPassword(string? userId = null, string? token = null, string? returnUrl = null)
     {
-        var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        try
+        {
+            await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
 
-        ViewBag.ReturnUrl = returnUrl;
+        ViewBag.ReturnUrl = GetSafeRedirectUrl(returnUrl);
 
         if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token))
         {
@@ -493,10 +488,17 @@ public class AuthPagesController : Controller
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword(ResetPasswordInputModel model, string? returnUrl = null)
     {
-        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        Guid? tenantId;
+        try
+        {
+            tenantId = await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
 
-        ViewBag.ReturnUrl = returnUrl;
+        ViewBag.ReturnUrl = GetSafeRedirectUrl(returnUrl);
 
         if (!ModelState.IsValid)
         {
@@ -516,10 +518,10 @@ public class AuthPagesController : Controller
 
             if (result)
             {
-                var effectiveReturnUrl = GetEffectiveReturnUrl(returnUrl, tenantId);
+                var safeReturnUrl = GetSafeRedirectUrl(returnUrl);
                 return RedirectToAction("Login", new { 
                     successMessage = "Password reset successfully! You can now sign in with your new password.",
-                    returnUrl = effectiveReturnUrl != "/" ? effectiveReturnUrl : null
+                    returnUrl = safeReturnUrl
                 });
             }
             else
@@ -541,10 +543,16 @@ public class AuthPagesController : Controller
     [HttpGet("register-invitation")]
     public async Task<IActionResult> RegisterInvitation(string? email = null, string? token = null, string? invitationId = null, string? returnUrl = null)
     {
-        var (errorResult, _) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        try
+        {
+            await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
 
-        ViewBag.ReturnUrl = returnUrl;
+        ViewBag.ReturnUrl = GetSafeRedirectUrl(returnUrl);
 
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(token) || string.IsNullOrEmpty(invitationId))
         {
@@ -573,11 +581,17 @@ public class AuthPagesController : Controller
     [HttpPost("register-invitation")]
     public async Task<IActionResult> RegisterInvitation(RegisterInvitationInputModel model, string? returnUrl = null)
     {
-        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        try
+        {
+            await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
         
         ViewBag.InvitationEmail = model.Email;
-        ViewBag.ReturnUrl = returnUrl;
+        ViewBag.ReturnUrl = GetSafeRedirectUrl(returnUrl);
 
         if (!ModelState.IsValid)
         {
@@ -603,10 +617,10 @@ public class AuthPagesController : Controller
 
             if (result.Succeeded)
             {
-                var effectiveReturnUrl = GetEffectiveReturnUrl(returnUrl, tenantId);
+                var safeReturnUrl = GetSafeRedirectUrl(returnUrl);
                 return RedirectToAction("Login", new { 
                     successMessage = "Registration successful! You can now sign in with your credentials.",
-                    returnUrl = effectiveReturnUrl != "/" ? effectiveReturnUrl : null
+                    returnUrl = safeReturnUrl != _defaultReturnUrl ? safeReturnUrl : null
                 });
             }
             else
@@ -631,10 +645,17 @@ public class AuthPagesController : Controller
     [HttpGet("confirm-email")]
     public async Task<IActionResult> ConfirmEmail(string? userId = null, string? token = null, string? email = null, string? returnUrl = null)
     {
-        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        Guid? tenantId;
+        try
+        {
+            tenantId = await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
 
-        ViewBag.ReturnUrl = returnUrl;
+        ViewBag.ReturnUrl = GetSafeRedirectUrl(returnUrl);
 
         if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token))
         {
@@ -680,10 +701,18 @@ public class AuthPagesController : Controller
     [HttpPost("confirm-email")]
     public async Task<IActionResult> ResendConfirmation(string email, string? returnUrl = null)
     {
-        var (errorResult, tenantId) = await ValidateTenantAndSetupBrandingAsync();
-        if (errorResult != null) return errorResult;
+        Guid? tenantId;
+        try
+        {
+            tenantId = await ValidateTenantAndSetupBrandingAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            return RedirectToAction("TenantError", new { message = ex.Message });
+        }
 
-        ViewBag.ReturnUrl = returnUrl;
+        var safeReturnUrl = GetSafeRedirectUrl(returnUrl);
+        ViewBag.ReturnUrl = safeReturnUrl;
 
         if (string.IsNullOrEmpty(email))
         {
@@ -694,7 +723,7 @@ public class AuthPagesController : Controller
         try
         {
 
-            var result = await _authService.SendEmailConfirmationAsync(email, null, tenantId, returnUrl);
+            var result = await _authService.SendEmailConfirmationAsync(email, null, tenantId, safeReturnUrl);
 
             if (result)
             {
