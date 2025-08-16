@@ -11,6 +11,6 @@ public class PermissionDto : BaseObjectDto
     [StringLength(50)]
     public string? Description { get; set; }
 
-    public RoleScope ApplicableScopes { get; set; }
+    public RoleScope? RoleScope { get; set; }
     
 }

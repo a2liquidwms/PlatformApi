@@ -9,4 +9,6 @@ public class PermissionCreateDto
 
     [StringLength(50)]
     public string? Description { get; set; }
+    
+    public RoleScope? RoleScope { get; set; }
 }

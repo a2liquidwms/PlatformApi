@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using NetStarterCommon.Core.Common.Models;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Services;
@@ -13,19 +14,29 @@ public class PermissionService : IPermissionService
     private readonly PlatformDbContext _context;
     private readonly IUnitOfWork<PlatformDbContext> _uow;
     private readonly ITenantService _tenantService;
+    private readonly IMemoryCache _cache;
 
     public PermissionService(ILogger<PermissionService> logger, PlatformDbContext context, IUnitOfWork<PlatformDbContext> uow,
-        ITenantService tenantService)
+        ITenantService tenantService, IMemoryCache cache)
     {
         _logger = logger;
         _context = context;
         _uow = uow;
         _tenantService = tenantService;
+        _cache = cache;
     }
 
-    public async Task<IEnumerable<Permission>> GetAllPermissions()
+    public async Task<IEnumerable<Permission>> GetAllPermissions(int? scope = null)
     {
-        return await _context.Permissions.AsNoTracking().ToListAsync();
+        var query = _context.Permissions.AsNoTracking();
+        
+        if (scope.HasValue)
+        {
+            var roleScope = (RoleScope)scope.Value;
+            query = query.Where(p => p.RoleScope == null || p.RoleScope == roleScope);
+        }
+        
+        return await query.ToListAsync();
     }
     
     public async Task<Permission?> GetPermissionByCode(string code)
@@ -105,6 +116,7 @@ public class PermissionService : IPermissionService
         }
         return query;
     }
+    
     public async Task<IEnumerable<Role>> GetAllRoles(bool includePermissions = false)
     {
         var query = CreateRoleQuery(includePermissions);
@@ -172,7 +184,7 @@ public class PermissionService : IPermissionService
     public async Task<Role> AddPermissionsToRole(string roleId, string[] permissionCodes)
     {
         // Retrieve the role by its ID
-        var role = await GetRoleById(roleId, true);
+        var role = await GetRoleById(roleId, false);
 
         if (role == null)
         {
@@ -189,37 +201,55 @@ public class PermissionService : IPermissionService
             throw new InvalidDataException("Some permissions do not exist or are invalid.");
         }
 
+        // Validate RoleScope compatibility for all permissions
+        var incompatiblePermissions = permissions
+            .Where(p => p.RoleScope.HasValue && p.RoleScope != role.Scope)
+            .ToList();
+        
+        if (incompatiblePermissions.Any())
+        {
+            var incompatibleCodes = string.Join(", ", incompatiblePermissions.Select(p => $"{p.Code} (scope: {p.RoleScope})"));
+            throw new InvalidDataException($"The following permissions cannot be assigned to role with scope {role.Scope}: {incompatibleCodes}");
+        }
+
+        // Get existing role permissions to check for duplicates
+        var existingRolePermissions = await _context.RolePermissions
+            .Where(rp => rp.RoleId == Guid.Parse(roleId) && permissionCodes.Contains(rp.PermissionCode))
+            .Select(rp => rp.PermissionCode)
+            .ToListAsync();
+
         try
         {
-            // Add permissions to the role
+            // Add permissions to the role (skip existing ones)
             foreach (var permission in permissions)
             {
-                if (role.RolePermissions!.All(rp => rp.PermissionCode != permission.Code))
+                if (!existingRolePermissions.Contains(permission.Code))
                 {
-                    role.RolePermissions!.Add(new RolePermission
+                    _context.RolePermissions.Add(new RolePermission
                     {
                         RoleId = Guid.Parse(roleId),
                         PermissionCode = permission.Code
                     });
                 }
             }
+
+            await _uow.CompleteAsync();
+
+            // Invalidate cache since role permissions changed
+            InvalidateRolePermissionCache();
+
+            return (await GetRoleById(roleId, true))!;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, ex.Message);
-            throw new ServiceException("Error Saving Permissions");
-        } 
-
-        // Save changes
-        _context.Roles.Update(role); // Ensure changes are tracked
-        await _uow.CompleteAsync();
-
-        return (await GetRoleById(roleId, true))!;
+            _logger.LogError(ex, "Error adding permissions to role {RoleId}", roleId);
+            throw new ServiceException("Error adding permissions to role");
+        }
     }
 
     public async Task<Role> AddPermissionToRole(string roleId, string permissionCode)
     {
-        var role = await GetRoleById(roleId, true);
+        var role = await GetRoleById(roleId, false);
         if (role == null)
         {
             throw new NotFoundException($"Role with ID {roleId} does not exist.");
@@ -231,21 +261,33 @@ public class PermissionService : IPermissionService
             throw new NotFoundException($"Permission with code {permissionCode} does not exist.");
         }
 
-        if (role.RolePermissions!.Any(rp => rp.PermissionCode == permissionCode))
+        // Validate RoleScope compatibility
+        if (permission.RoleScope.HasValue && permission.RoleScope != role.Scope)
+        {
+            throw new InvalidDataException($"Permission {permissionCode} (scope: {permission.RoleScope}) cannot be assigned to role with scope {role.Scope}.");
+        }
+
+        // Check if the role already has this permission
+        var existingRolePermission = await _context.RolePermissions
+            .FirstOrDefaultAsync(rp => rp.RoleId == Guid.Parse(roleId) && rp.PermissionCode == permissionCode);
+        
+        if (existingRolePermission != null)
         {
             throw new InvalidDataException($"Role already has permission {permissionCode}.");
         }
 
         try
         {
-            role.RolePermissions!.Add(new RolePermission
+            _context.RolePermissions.Add(new RolePermission
             {
                 RoleId = Guid.Parse(roleId),
                 PermissionCode = permissionCode
             });
 
-            _context.Roles.Update(role);
             await _uow.CompleteAsync();
+
+            // Invalidate cache since role permissions changed
+            InvalidateRolePermissionCache();
 
             return (await GetRoleById(roleId, true))!;
         }
@@ -258,13 +300,15 @@ public class PermissionService : IPermissionService
 
     public async Task<Role> RemovePermissionFromRole(string roleId, string permissionCode)
     {
-        var role = await GetRoleById(roleId, true);
+        var role = await GetRoleById(roleId, false);
         if (role == null)
         {
             throw new NotFoundException($"Role with ID {roleId} does not exist.");
         }
 
-        var rolePermission = role.RolePermissions!.FirstOrDefault(rp => rp.PermissionCode == permissionCode);
+        var rolePermission = await _context.RolePermissions
+            .FirstOrDefaultAsync(rp => rp.RoleId == Guid.Parse(roleId) && rp.PermissionCode == permissionCode);
+        
         if (rolePermission == null)
         {
             throw new NotFoundException($"Role does not have permission {permissionCode}.");
@@ -275,6 +319,9 @@ public class PermissionService : IPermissionService
             _context.RolePermissions.Remove(rolePermission);
             await _uow.CompleteAsync();
 
+            // Invalidate cache since role permissions changed
+            InvalidateRolePermissionCache();
+
             return (await GetRoleById(roleId, true))!;
         }
         catch (Exception ex)
@@ -284,8 +331,15 @@ public class PermissionService : IPermissionService
         }
     }
 
-    public async Task<List<CommonRolesPermission>> GetAllRolesForPermissionMiddleware()
+    public async Task<List<CommonRolesPermission>> GetAllRolesWithPermissionsCached()
     {
+        // Try to get from cache first
+        if (_cache.TryGetValue(CommonConstants.PermissionRoleCacheKey, out List<CommonRolesPermission>? cachedRoles))
+        {
+            return cachedRoles!;
+        }
+
+        // If not in cache, fetch data
         var rawRolesData = await GetAllRoles(true);
         
         var commonRoles = new List<CommonRolesPermission>();
@@ -303,7 +357,18 @@ public class PermissionService : IPermissionService
             commonRoles.Add(commonRole);
         }
         
+        // Cache the results for 10 minutes
+        var cacheOptions = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
+        
+        _cache.Set(CommonConstants.PermissionRoleCacheKey, commonRoles, cacheOptions);
+        
         return commonRoles;
+    }
+
+    public void InvalidateRolePermissionCache()
+    {
+        _cache.Remove(CommonConstants.PermissionRoleCacheKey);
     }
     
 }

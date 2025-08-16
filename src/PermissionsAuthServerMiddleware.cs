@@ -109,31 +109,19 @@ public class PermissionsAuthServerMiddleware
     
     private async Task<List<CommonRolesPermission>> GetAllRolesWithPermissions(string token)
     {
-        // Try to get from cache first
-        if (_cache.TryGetValue(CommonConstants.PermissionRoleCacheKey, out List<CommonRolesPermission>? cachedRoles))
-        {
-            return cachedRoles!;
-        }
-        
         try
         {
             using (var scope = _serviceScopeFactory.CreateScope())
             {
                 var permissionService = scope.ServiceProvider.GetRequiredService<IPermissionService>();
-                var allRoles = await permissionService.GetAllRolesForPermissionMiddleware();
+                var allRoles = await permissionService.GetAllRolesWithPermissionsCached();
 
                 if (allRoles.Any())
                 {
-                    // Cache the results
-                    var cacheOptions = new MemoryCacheEntryOptions()
-                        .SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
-
-                    _cache.Set(CommonConstants.PermissionRoleCacheKey, allRoles, cacheOptions);
-
                     return allRoles;
                 }
 
-                _logger.LogWarning("Failed to fetch role permissions");
+                _logger.LogWarning("Failed to fetch role permissions - no roles returned");
                 throw new ServiceException("Failed to fetch role permissions");
             }
         }

@@ -14,7 +14,7 @@ public class Permission : BaseObject
     [StringLength(50)]
     public string? Description { get; set; }
     
-    public RoleScope ApplicableScopes { get; set; } = RoleScope.Internal | RoleScope.Tenant | RoleScope.Site;
+    public RoleScope? RoleScope { get; set; }
     
     public virtual ICollection<RolePermission>? RolePermissions { get; set; }
 }

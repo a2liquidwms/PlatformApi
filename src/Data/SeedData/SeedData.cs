@@ -19,10 +19,10 @@ public static class SeedUserServiceData
         );
         
         modelBuilder.Entity<Permission>().HasData(
-            new Permission { Code = RolePermissionConstants.DefaultAll, Description = "Default Basic Access Permission", ApplicableScopes = RoleScope.Default, CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, DateTimeKind.Utc)},
-            new Permission { Code = RolePermissionConstants.SysAdminManagePermissions, Description = "SysAdmin Manage Permissions", ApplicableScopes = RoleScope.Internal, CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, DateTimeKind.Utc)},
-            new Permission { Code = RolePermissionConstants.SysAdminManageUsers, Description = "SysAdmin Manage Users", ApplicableScopes = RoleScope.Internal, CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, DateTimeKind.Utc)},
-            new Permission { Code = RolePermissionConstants.SysAdminManageTenants, Description = "SysAdmin Manage Tenants", ApplicableScopes = RoleScope.Internal, CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, DateTimeKind.Utc)}
+            new Permission { Code = RolePermissionConstants.DefaultAll, Description = "Default Basic Access Permission", RoleScope = Models.RoleScope.Default, CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, DateTimeKind.Utc)},
+            new Permission { Code = RolePermissionConstants.SysAdminManagePermissions, Description = "SysAdmin Manage Permissions", RoleScope = Models.RoleScope.Internal, CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, DateTimeKind.Utc)},
+            new Permission { Code = RolePermissionConstants.SysAdminManageUsers, Description = "SysAdmin Manage Users", RoleScope = Models.RoleScope.Internal, CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, DateTimeKind.Utc)},
+            new Permission { Code = RolePermissionConstants.SysAdminManageTenants, Description = "SysAdmin Manage Tenants", RoleScope = Models.RoleScope.Internal, CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, DateTimeKind.Utc)}
         );
         
         // Add RolePermission data

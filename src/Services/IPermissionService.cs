@@ -5,7 +5,7 @@ namespace PlatformApi.Services;
 
 public interface IPermissionService
 {
-    Task<IEnumerable<Permission>> GetAllPermissions();
+    Task<IEnumerable<Permission>> GetAllPermissions(int? scope = null);
     Task<Permission?> GetPermissionByCode(string code);
     Task<Permission> AddPermission(Permission obj);
     Task<bool> UpdatePermission(string code, Permission obj);
@@ -20,5 +20,6 @@ public interface IPermissionService
     Task<Role> AddPermissionToRole(string roleId, string permissionCode);
     Task<Role> RemovePermissionFromRole(string roleId, string permissionCode);
     Task<int> AddPermissionsMulti(Permission[] objs);
-    Task<List<CommonRolesPermission>> GetAllRolesForPermissionMiddleware();
+    Task<List<CommonRolesPermission>> GetAllRolesWithPermissionsCached();
+    void InvalidateRolePermissionCache();
 }

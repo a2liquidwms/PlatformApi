@@ -118,9 +118,9 @@ public class PermissionController : ControllerBase
     [RequirePermission(RolePermissionConstants.SysAdminManagePermissions)]
     //permissions
     [HttpGet( "permissions")]
-    public async Task<ActionResult<IEnumerable<PermissionDto>>> GetAllPermissions()
+    public async Task<ActionResult<IEnumerable<PermissionDto>>> GetAllPermissions([FromQuery] int? scope = null)
     {
-        var result = await _permissionService.GetAllPermissions();
+        var result = await _permissionService.GetAllPermissions(scope);
         
         return Ok(_mapper.Map<IEnumerable<PermissionDto>>(result));
     } 
