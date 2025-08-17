@@ -18,29 +18,28 @@ public class EmailConfirmationTemplate : EmailTemplateBase
         return $"Confirm Your Email Address - {branding.SiteName}";
     }
 
-    protected override string GetEmailTitle()
+    protected override string GetEmailTitle(BrandingContext branding)
     {
-        return "Confirm Your Email Address";
+        return branding.SiteName;
     }
 
     protected override string GetHtmlContent(BrandingContext branding)
     {
-        return $"<h2>Hello {_userName}!</h2><p>Thank you for registering with {branding.SiteName}. To complete your registration, please confirm your email address by clicking the button below:</p><div class=\"center\"><a href=\"{_confirmationUrl}\" class=\"button\">Confirm Email Address</a></div><p>If the button doesn't work, you can copy and paste this link into your browser:</p><div class=\"url-box\">{_confirmationUrl}</div><p><strong>Important:</strong> This link will expire in 24 hours for security reasons.</p><p>If you didn't request this email, please ignore it.</p>";
+        return $"<p>Hi {_userName},</p><p>Thank you for registering with {branding.SiteName}. Please confirm your email address:</p><a href=\"{_confirmationUrl}\" class=\"button\">Confirm Email Address</a><p>This link expires in 24 hours.</p><p>If you didn't request this, please ignore this email.</p><p>Your {branding.SiteName} Team</p>";
     }
 
     public override string GenerateText(BrandingContext branding)
     {
-        return $@"Hello {_userName}!
+        return $@"Hi {_userName},
 
-Thank you for registering with {branding.SiteName}. To complete your registration, please confirm your email address by visiting the following link:
+Thank you for registering with {branding.SiteName}. Please confirm your email address:
 
 {_confirmationUrl}
 
-This link will expire in 24 hours for security reasons.
+This link expires in 24 hours.
 
-If you didn't request this email, please ignore it.
+If you didn't request this, please ignore this email.
 
-Best regards,
-{branding.SiteName} Team";
+Your {branding.SiteName} Team";
     }
 }

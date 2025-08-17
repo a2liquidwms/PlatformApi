@@ -18,36 +18,28 @@ public class TenantInvitationTemplate : EmailTemplateBase
         return $"You're Invited to Join {branding.SiteName}";
     }
 
-    protected override string GetEmailTitle()
+    protected override string GetEmailTitle(BrandingContext branding)
     {
-        return "You're Invited!";
+        return branding.SiteName;
     }
 
     protected override string GetHtmlContent(BrandingContext branding)
     {
-        return $"<h2>Hello {_userName}!</h2><p>You've been invited to join <strong>{branding.SiteName}</strong>.</p><p>To complete your registration and set up your account, please click the button below:</p><div class=\"center\"><a href=\"{_invitationUrl}\" class=\"button\">Accept Invitation & Register</a></div><p>If the button doesn't work, you can copy and paste this link into your browser:</p><div class=\"url-box\">{_invitationUrl}</div><div class=\"warning\"><strong>Important:</strong> This invitation will expire in 7 days for security reasons.</div><p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p><p>Welcome to {branding.SiteName}!</p>";
+        return $"<p>Hi {_userName},</p><p>You've been invited to join {branding.SiteName}.</p><a href=\"{_invitationUrl}\" class=\"button\">Accept Invitation</a><p>This invitation expires in 7 days.</p><p>If you didn't expect this invitation, please ignore this email.</p><p>Your {branding.SiteName} Team</p>";
     }
 
     public override string GenerateText(BrandingContext branding)
     {
-        return $@"You're Invited to Join {branding.SiteName}!
+        return $@"Hi {_userName},
 
-Hello {_userName}!
+You've been invited to join {branding.SiteName}.
 
-You've been invited to join {branding.SiteName}. 
-
-To complete your registration and set up your account, please visit:
 {_invitationUrl}
 
-Important: This invitation will expire in 7 days for security reasons.
+This invitation expires in 7 days.
 
-If you have any questions or need assistance, please don't hesitate to contact our support team.
+If you didn't expect this invitation, please ignore this email.
 
-Welcome to {branding.SiteName}!
-
-Best regards,
-{branding.SiteName} Team
-
-This email was sent to {_userName}. If you didn't expect this invitation, you can safely ignore this email.";
+Your {branding.SiteName} Team";
     }
 }

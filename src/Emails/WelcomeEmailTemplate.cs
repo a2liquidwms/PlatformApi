@@ -16,28 +16,24 @@ public class WelcomeEmailTemplate : EmailTemplateBase
         return $"Welcome to {branding.SiteName}!";
     }
 
-    protected override string GetEmailTitle()
+    protected override string GetEmailTitle(BrandingContext branding)
     {
-        return "Welcome!";
+        return branding.SiteName;
     }
 
     protected override string GetHtmlContent(BrandingContext branding)
     {
-        return $@"
-            <h2>Hello {_userName}!</h2>
-            <p>Your email has been successfully confirmed and your {branding.SiteName} account is now active.</p>
-            <p><strong>Thank you for choosing {branding.SiteName}!</strong></p>";
+        return $"<p>Hi {_userName},</p><p>Welcome to {branding.SiteName}! Your account is now active.</p><p>Thank you for choosing {branding.SiteName}!</p><p>Your {branding.SiteName} Team</p>";
     }
 
     public override string GenerateText(BrandingContext branding)
     {
-        return $@"Hello {_userName}!
+        return $@"Hi {_userName},
 
-Welcome to {branding.SiteName}! Your email has been successfully confirmed and your account is now active.
+Welcome to {branding.SiteName}! Your account is now active.
 
 Thank you for choosing {branding.SiteName}!
 
-Best regards,
-{branding.SiteName}";
+Your {branding.SiteName} Team";
     }
 }

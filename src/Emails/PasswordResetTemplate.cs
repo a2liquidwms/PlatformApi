@@ -15,32 +15,32 @@ public class PasswordResetTemplate : EmailTemplateBase
 
     public override string GetSubject(BrandingContext branding)
     {
-        return $"Reset Your Password - {branding.SiteName}";
+        return $"{branding.SiteName} Password Reset";
     }
 
-    protected override string GetEmailTitle()
+
+    protected override string GetEmailTitle(BrandingContext branding)
     {
-        return "Reset Your Password";
+        return branding.SiteName;
     }
 
     protected override string GetHtmlContent(BrandingContext branding)
     {
-        return $"<h2>Hello {_userName}!</h2><p>We received a request to reset your password for your {branding.SiteName} account. If you made this request, click the button below to reset your password:</p><div class=\"center\"><a href=\"{_resetUrl}\" class=\"button\">Reset Password</a></div><p>If the button doesn't work, you can copy and paste this link into your browser:</p><div class=\"url-box\">{_resetUrl}</div><div class=\"warning\"><strong>Security Notice:</strong> This link will expire in 1 hour for security reasons. If you didn't request this password reset, please ignore this email and your password will remain unchanged.</div><p>If you have any concerns about your account security, please contact our support team.</p>";
+        return $"<p>Hi {_userName},</p><p>Need to reset your {branding.SiteName} password? No problem. Just click this link:</p><a href=\"{_resetUrl}\" class=\"button\">Reset Password</a><p>This link expires in 1 hour.</p><p>If you didn't request this, please ignore this email.</p><p>Your {branding.SiteName} Team</p>";
     }
 
     public override string GenerateText(BrandingContext branding)
     {
-        return $@"Hello {_userName}!
+        return $@"Hi {_userName},
 
-We received a request to reset your password for your {branding.SiteName} account. If you made this request, visit the following link to reset your password:
+Need to reset your {branding.SiteName} password? No problem. Just click this link:
 
 {_resetUrl}
 
-This link will expire in 1 hour for security reasons.
+This link expires in 1 hour.
 
-If you didn't request this password reset, please ignore this email and your password will remain unchanged.
+If you didn't request this, please ignore this email.
 
-Best regards,
-{branding.SiteName} Team";
+Your {branding.SiteName} Team";
     }
 }
