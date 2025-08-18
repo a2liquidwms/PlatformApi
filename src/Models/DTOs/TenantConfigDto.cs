@@ -8,7 +8,7 @@ public class TenantConfigDto
 
     public required string SubDomain { get; set; }
 
-    public string? SiteName { get; set; }
+    public string? TenantName { get; set; }
 
     public string? LogoPath { get; set; }
 

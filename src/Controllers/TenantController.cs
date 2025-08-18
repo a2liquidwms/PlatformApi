@@ -124,6 +124,7 @@ public class TenantController : ControllerBase
             
             var tenantConfigDto = _mapper.Map<TenantConfigDto>(config);
             tenantConfigDto.SubDomain = config.Tenant!.SubDomain;
+            tenantConfigDto.TenantName = config.Tenant!.Name;
 
             return Ok(tenantConfigDto);
         }
@@ -148,6 +149,7 @@ public class TenantController : ControllerBase
 
             var tenantConfigDto = _mapper.Map<TenantConfigDto>(config);
             tenantConfigDto.SubDomain = config.Tenant!.SubDomain;
+            tenantConfigDto.TenantName = config.Tenant!.Name;
 
             return Ok(tenantConfigDto);
         }
@@ -168,7 +170,6 @@ public class TenantController : ControllerBase
                 TenantId = id,
                 LogoPath = obj.LogoPath,
                 PrimaryColor = obj.PrimaryColor,
-                SiteName = obj.SiteName,
             };
             
             var result = await _tenantService.UpdateTenantConfig(id, tenantConfig);

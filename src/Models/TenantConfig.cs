@@ -11,9 +11,6 @@ public class TenantConfig
     public required Guid TenantId { get; set; }
 
     public virtual Tenant? Tenant { get; set; }
-
-    [StringLength(50)]
-    public string? SiteName { get; set; }
     
     public string? LogoPath { get; set; }
 

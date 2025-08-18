@@ -52,13 +52,13 @@ public class BrandingService : IBrandingService
         {
             return new BrandingContext
             {
-                SiteName = tenantConfig.SiteName ?? tenantConfig.Tenant.Name,
+                SiteName = tenantConfig.Tenant.Name,
                 LogoPath = tenantConfig.LogoPath,
                 PrimaryColor = tenantConfig.PrimaryColor ?? "#007bff",
                 SubDomain = tenantConfig.Tenant.SubDomain,
                 TenantId = tenantConfig.TenantId,
                 BaseUrl = GetBaseUrl(tenantConfig.Tenant.SubDomain),
-                EmailFromName = tenantConfig.SiteName ?? tenantConfig.Tenant.Name
+                EmailFromName = tenantConfig.Tenant.Name
             };
         }
 
