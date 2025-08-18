@@ -1,10 +1,10 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Caching.Memory;
 using NetStarterCommon.Core.Common.Models;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Permissions;
+using PlatformApi.Common.Services;
 using PlatformApi.Services;
 
 namespace PlatformApi;
@@ -14,11 +14,11 @@ public class PermissionsAuthServerMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<PermissionsAuthServerMiddleware> _logger;
     private readonly IServiceScopeFactory _serviceScopeFactory;
-    private readonly IMemoryCache _cache;
+    private readonly ICacheService _cache;
     private readonly List<string> _excludedPaths;
 
     public PermissionsAuthServerMiddleware(RequestDelegate next, ILogger<PermissionsAuthServerMiddleware> logger, 
-        IServiceScopeFactory serviceScopeFactory,IMemoryCache cache)
+        IServiceScopeFactory serviceScopeFactory, ICacheService cache)
     {
         _next = next;
         _logger = logger;

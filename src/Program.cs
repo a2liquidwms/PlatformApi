@@ -78,7 +78,14 @@ builder.Services.TenantCheckServices(builder.Configuration);
 builder.Services.PermissionCheckServices(builder.Configuration);
 builder.Services.AddHealthChecks();
 builder.Services.AddAutoMapper(typeof(Program));
+
+// Cache configuration
 builder.Services.AddMemoryCache();
+// Default to memory cache
+//builder.Services.AddSingleton<ICacheService, DistributedCacheService>();
+builder.Services.AddSingleton<ICacheService, MemoryCacheService>();
+
+
 // Removed Razor Pages - using MVC Controllers instead
 
 builder.Services.AddScoped<IUnitOfWork<PlatformDbContext>, UnitOfWork<PlatformDbContext>>();

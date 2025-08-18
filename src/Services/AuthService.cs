@@ -10,7 +10,6 @@ using Microsoft.IdentityModel.Tokens;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Services;
 using PlatformApi.Common.Tenant;
-using PlatformApi.Controllers;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
@@ -29,6 +28,7 @@ public class AuthService : IAuthService
     private readonly IUnitOfWork<PlatformDbContext> _uow;
     private readonly TenantHelper _tenantHelper;
     private readonly IUserService _userService;
+    private readonly ITenantService _tenantService;
     private readonly IEmailService _emailService;
     private readonly IBrandingService _brandingService;
     private readonly ISnsService _snsService;
@@ -38,7 +38,7 @@ public class AuthService : IAuthService
     public AuthService(UserManager<AuthUser> userManager, SignInManager<AuthUser> signInManager,
         IConfiguration configuration, ILogger<AuthService> logger, PlatformDbContext context,
         IUnitOfWork<PlatformDbContext> uow, TenantHelper tenantHelper, 
-        IUserService userService, IEmailService emailService, IBrandingService brandingService, ISnsService snsService)
+        IUserService userService, ITenantService tenantService, IEmailService emailService, IBrandingService brandingService, ISnsService snsService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -48,6 +48,7 @@ public class AuthService : IAuthService
         _uow = uow;
         _tenantHelper = tenantHelper;
         _userService = userService;
+        _tenantService = tenantService;
         _emailService = emailService;
         _brandingService = brandingService;
         _snsService = snsService;
@@ -105,10 +106,47 @@ public class AuthService : IAuthService
         {
             await ValidateUserSiteAccess(user, (Guid)siteId, (Guid)tenantId!);
         }
+        
+        // Auto-select tenant/site if not specified
+        (tenantId, siteId) = await AutoSelectTenantAndSite(user, tenantId, siteId);
 
         var token = await GenerateTokenBundle(user, tenantId, siteId);
 
         return token;
+    }
+
+    private async Task<(Guid? tenantId, Guid? siteId)> AutoSelectTenantAndSite(AuthUser user, Guid? inputTenantId = null, Guid? inputSiteId = null)
+    {
+        var tenantId = inputTenantId;
+        var siteId = inputSiteId;
+        
+        // Auto-select tenant if not specified
+        if (tenantId == null)
+        {
+            var userTenants = await _userService.GetUserTenants(user.Id, forLogin: true);
+            var tenantList = userTenants.ToList();
+            
+            // If user has exactly one tenant, auto-select it
+            if (tenantList.Count == 1)
+            {
+                tenantId = tenantList[0].Id;
+            }
+        }
+        
+        // If we have a tenant and no site specified, check for auto-select site
+        if (tenantId != null && siteId == null)
+        {
+            var userSites = await _userService.GetUserSites(user.Id, tenantId.Value, forLogin: true);
+            var siteList = userSites.ToList();
+            
+            // If user has exactly one site in this tenant, auto-select it
+            if (siteList.Count == 1)
+            {
+                siteId = siteList[0].Id;
+            }
+        }
+        
+        return (tenantId, siteId);
     }
 
     private async Task ValidateUserTenantAccess(AuthUser user, Guid tenantId)
@@ -384,6 +422,14 @@ public class AuthService : IAuthService
     {
         var tokenReturn = await GenerateJwtToken(user, tenantId, siteId);
         var refreshToken = await GenerateRefreshToken(user, tenantId, siteId);
+        
+        // Lookup tenant subdomain if tenantId is provided
+        string? tenantSubdomain = null;
+        if (tenantId.HasValue)
+        {
+            var tenant = await _tenantService.GetById(tenantId.Value);
+            tenantSubdomain = tenant?.SubDomain;
+        }
 
         return new AuthTokenBundle()
         {
@@ -392,7 +438,8 @@ public class AuthService : IAuthService
             RefreshToken = refreshToken,
             Expires = (int)new DateTimeOffset(tokenReturn.Expires).ToUnixTimeSeconds(),
             TenantId = tenantId,
-            SiteId = siteId
+            SiteId = siteId,
+            TenantSubdomain = tenantSubdomain
         };
     }
 
@@ -598,7 +645,7 @@ public class AuthService : IAuthService
         
         if (!hasSiteAccess)
         {
-            throw new InvalidDataException("Site Access denied");
+            throw new InvalidDataException("User not assigned to this site");
         }
 
         // Revoke all existing refresh tokens for this user

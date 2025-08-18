@@ -1,7 +1,6 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Permissions;
 using PlatformApi.Common.Services;
@@ -21,8 +20,7 @@ public class UserService : IUserService
     private readonly ILogger<UserService> _logger;
     private readonly IUnitOfWork<PlatformDbContext> _uow;
     private readonly PermissionHelper _permissionHelper;
-    private readonly IMemoryCache _cache;
-    private const int CacheMinutes = 5;
+    private readonly ICacheService _cache;
 
     public UserService(
         PlatformDbContext context,
@@ -31,7 +29,7 @@ public class UserService : IUserService
         ILogger<UserService> logger,
         IUnitOfWork<PlatformDbContext> uow,
         PermissionHelper permissionHelper,
-        IMemoryCache cache)
+        ICacheService cache)
     {
         _context = context;
         _userManager = userManager;
@@ -100,6 +98,14 @@ public class UserService : IUserService
         var user = await GetUserByEmail(dto.Email);
         if (user == null) return false;
 
+        // Validate role exists and has correct scope BEFORE making any changes
+        if (!string.IsNullOrEmpty(dto.RoleId))
+        {
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == Guid.Parse(dto.RoleId));
+            if (role == null) throw new NotFoundException($"Role with ID {dto.RoleId} does not exist.");
+            if (role.Scope != RoleScope.Tenant) throw new InvalidDataException($"Role {role.Name} is not a Tenant scope role.");
+        }
+
         // Check if user is already in tenant
         var existingUserTenant = await _context.UserTenants
             .FirstOrDefaultAsync(ut => ut.UserId == user.Id && ut.TenantId == dto.TenantId);
@@ -144,6 +150,14 @@ public class UserService : IUserService
             .FirstOrDefaultAsync(s => s.Id == dto.SiteId);
         if (site == null) return false;
 
+        // Validate role exists and has correct scope BEFORE making any changes
+        if (dto.RoleId.HasValue)
+        {
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == dto.RoleId.Value);
+            if (role == null) throw new NotFoundException($"Role with ID {dto.RoleId.Value} does not exist.");
+            if (role.Scope != RoleScope.Site) throw new InvalidDataException($"Role {role.Name} is not a Site scope role.");
+        }
+
         // Ensure user is in the tenant first
         var userTenant = await _context.UserTenants
             .FirstOrDefaultAsync(ut => ut.UserId == user.Id && ut.TenantId == site.TenantId);
@@ -176,17 +190,21 @@ public class UserService : IUserService
             await _context.UserSites.AddAsync(userSite);
         }
 
-        // Add required role
-        var roleDto = new AddUserToRoleDto
+        // Add role if specified
+        if (dto.RoleId.HasValue)
         {
-            Email = dto.Email,
-            TenantId = site.TenantId,
-            SiteId = dto.SiteId,
-            RoleId = dto.RoleId.ToString(),
-            Scope = RoleScope.Site
-        };
-        
-        await AddUserToRole(roleDto);
+            var roleDto = new AddUserToRoleDto
+            {
+                Email = dto.Email,
+                TenantId = site.TenantId,
+                SiteId = dto.SiteId,
+                RoleId = dto.RoleId.Value.ToString(),
+                Scope = RoleScope.Site
+            };
+            
+            await AddUserToRole(roleDto);
+        }
+
         await _uow.CompleteAsync();
         return true;
     }
@@ -362,7 +380,6 @@ public class UserService : IUserService
         // For login, skip caching and return fresh data
         if (forLogin)
         {
-            _logger.LogDebug("Regular user login - querying assigned tenants, user {UserId}", userId);
             var tenants = await _context.UserTenants
                 .Where(ut => ut.UserId == userId)
                 .Include(ut => ut.Tenant)
@@ -378,15 +395,8 @@ public class UserService : IUserService
         }
 
         // Regular users get cached results for performance (post-authentication)
-        var generationKey = "user_tenant_cache_generation";
-        var cacheKey = $"user_tenants_{userId}";
-        var userCacheKey = $"user_tenants_gen_{userId}";
-        
-        // Check if cache is still valid based on generation
-        if (_cache.TryGetValue(cacheKey, out IEnumerable<TenantDto>? cachedTenants) && cachedTenants != null &&
-            _cache.TryGetValue(userCacheKey, out int userGeneration) &&
-            _cache.TryGetValue(generationKey, out int currentGeneration) &&
-            userGeneration == currentGeneration)
+        var cachedTenants = await _cache.GetCachedUserTenantsAsync(userId);
+        if (cachedTenants != null)
         {
             _logger.LogDebug("Cache hit for user tenants: {UserId}", userId);
             return cachedTenants;
@@ -408,22 +418,8 @@ public class UserService : IUserService
             .ToListAsync();
 
         // Cache the results for regular users
-        var cacheOptions = new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheMinutes),
-            SlidingExpiration = TimeSpan.FromMinutes(CacheMinutes / 2)
-        };
-
-        // Get or initialize current generation
-        if (!_cache.TryGetValue(generationKey, out currentGeneration))
-        {
-            currentGeneration = 1;
-            _cache.Set(generationKey, currentGeneration);
-        }
-
-        _cache.Set(cacheKey, userTenants, cacheOptions);
-        _cache.Set(userCacheKey, currentGeneration, cacheOptions);
-        _logger.LogDebug("Cached {TenantCount} tenants for user {UserId} with generation {Generation}", userTenants.Count(), userId, currentGeneration);
+        await _cache.SetCachedUserTenantsAsync(userId, userTenants);
+        _logger.LogDebug("Cached {TenantCount} tenants for user {UserId}", userTenants.Count(), userId);
             
         return userTenants;
     }
@@ -453,22 +449,55 @@ public class UserService : IUserService
             return allSites;
         }
 
-        // Regular users get their assigned sites within the specified tenant (site must be active)
-        var logContextRegular = forLogin ? "login" : "normal";
-        _logger.LogDebug("Regular user access ({Context}) - querying assigned sites for tenant {TenantId}, user {UserId}", logContextRegular, tenantId, userId);
+        // For login, skip caching and return fresh data
+        if (forLogin)
+        {
+            _logger.LogDebug("Regular user login - querying assigned sites for tenant {TenantId}, user {UserId}", tenantId, userId);
+            var loginSites = await _context.UserSites
+                .Where(us => us.UserId == userId && us.TenantId == tenantId && us.Site!.IsActive)
+                .Include(us => us.Site)
+                .ToListAsync();
+            
+            return loginSites.Where(us => us.Site != null).Select(us => new SiteDto 
+            { 
+                Id = us.Site!.Id, 
+                Code = us.Site!.Code,
+                Name = us.Site!.Name, 
+                TenantId = us.Site!.TenantId,
+                IsActive = us.Site!.IsActive 
+            });
+        }
+
+        // Regular users get cached results for performance (post-authentication)
+        var cachedSites = await _cache.GetCachedUserSitesAsync(userId, tenantId);
+        if (cachedSites != null)
+        {
+            _logger.LogDebug("Cache hit for user sites: {UserId}, tenant {TenantId}", userId, tenantId);
+            return cachedSites;
+        }
+
+        _logger.LogDebug("Cache miss for user sites, querying database: {UserId}, tenant {TenantId}", userId, tenantId);
+        
+        // Get all sites where user is explicitly assigned within the specified tenant (site must be active)
         var userSites = await _context.UserSites
             .Where(us => us.UserId == userId && us.TenantId == tenantId && us.Site!.IsActive)
             .Include(us => us.Site)
             .ToListAsync();
         
-        return userSites.Where(us => us.Site != null).Select(us => new SiteDto 
+        var siteDtos = userSites.Where(us => us.Site != null).Select(us => new SiteDto 
         { 
             Id = us.Site!.Id, 
             Code = us.Site!.Code,
             Name = us.Site!.Name, 
             TenantId = us.Site!.TenantId,
             IsActive = us.Site!.IsActive 
-        });
+        }).ToList();
+
+        // Cache the results for regular users
+        await _cache.SetCachedUserSitesAsync(userId, tenantId, siteDtos);
+        _logger.LogDebug("Cached {SiteCount} sites for user {UserId}, tenant {TenantId}", siteDtos.Count, userId, tenantId);
+            
+        return siteDtos;
     }
 
     public async Task<bool> HasTenantAccess(Guid userId, Guid tenantId, bool forLogin = false)
@@ -489,30 +518,30 @@ public class UserService : IUserService
     // Cache invalidation methods
     public void InvalidateUserTenantCache(Guid userId)
     {
-        var cacheKey = $"user_tenants_{userId}";
-        _cache.Remove(cacheKey);
+        _ = Task.Run(async () => await _cache.InvalidateCachedUserTenantsAsync(userId));
         
         _logger.LogDebug("Invalidated tenant cache for user {UserId}", userId);
     }
 
     public void InvalidateAllUserTenantCaches()
     {
-        // Note: IMemoryCache doesn't provide a way to enumerate keys or clear by pattern
-        // This is a limitation of MemoryCache. For production systems, consider using
-        // a cache implementation that supports pattern-based invalidation like Redis
-        
-        // For now, we'll use a cache generation approach
-        var cacheKey = "user_tenant_cache_generation";
-        if (_cache.TryGetValue(cacheKey, out int generation))
-        {
-            _cache.Set(cacheKey, generation + 1);
-        }
-        else
-        {
-            _cache.Set(cacheKey, 1);
-        }
+        _ = Task.Run(async () => await _cache.InvalidateAllCachedUserTenantsAsync());
         
         _logger.LogDebug("Invalidated all user tenant caches by incrementing generation");
+    }
+
+    public void InvalidateUserSiteCache(Guid userId, Guid tenantId)
+    {
+        _ = Task.Run(async () => await _cache.InvalidateCachedUserSitesAsync(userId, tenantId));
+        
+        _logger.LogDebug("Invalidated site cache for user {UserId}, tenant {TenantId}", userId, tenantId);
+    }
+
+    public void InvalidateAllUserSiteCaches()
+    {
+        _ = Task.Run(async () => await _cache.InvalidateAllCachedUserSitesAsync());
+        
+        _logger.LogDebug("Invalidated all user site caches by incrementing generation");
     }
 
     // User invitation methods

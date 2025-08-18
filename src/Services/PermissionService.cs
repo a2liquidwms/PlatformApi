@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using NetStarterCommon.Core.Common.Models;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Services;
@@ -14,10 +13,10 @@ public class PermissionService : IPermissionService
     private readonly PlatformDbContext _context;
     private readonly IUnitOfWork<PlatformDbContext> _uow;
     private readonly ITenantService _tenantService;
-    private readonly IMemoryCache _cache;
+    private readonly ICacheService _cache;
 
     public PermissionService(ILogger<PermissionService> logger, PlatformDbContext context, IUnitOfWork<PlatformDbContext> uow,
-        ITenantService tenantService, IMemoryCache cache)
+        ITenantService tenantService, ICacheService cache)
     {
         _logger = logger;
         _context = context;
@@ -201,9 +200,9 @@ public class PermissionService : IPermissionService
             throw new InvalidDataException("Some permissions do not exist or are invalid.");
         }
 
-        // Validate RoleScope compatibility for all permissions
+        // Validate RoleScope compatibility for all permissions using hierarchical rules
         var incompatiblePermissions = permissions
-            .Where(p => p.RoleScope.HasValue && p.RoleScope != role.Scope)
+            .Where(p => !CanPermissionBeAssignedToRole(p.RoleScope, role.Scope))
             .ToList();
         
         if (incompatiblePermissions.Any())
@@ -261,8 +260,8 @@ public class PermissionService : IPermissionService
             throw new NotFoundException($"Permission with code {permissionCode} does not exist.");
         }
 
-        // Validate RoleScope compatibility
-        if (permission.RoleScope.HasValue && permission.RoleScope != role.Scope)
+        // Validate RoleScope compatibility using hierarchical rules
+        if (!CanPermissionBeAssignedToRole(permission.RoleScope, role.Scope))
         {
             throw new InvalidDataException($"Permission {permissionCode} (scope: {permission.RoleScope}) cannot be assigned to role with scope {role.Scope}.");
         }
@@ -334,9 +333,10 @@ public class PermissionService : IPermissionService
     public async Task<List<CommonRolesPermission>> GetAllRolesWithPermissionsCached()
     {
         // Try to get from cache first
-        if (_cache.TryGetValue(CommonConstants.PermissionRoleCacheKey, out List<CommonRolesPermission>? cachedRoles))
+        var (success, cachedRoles) = await _cache.TryGetAsync<List<CommonRolesPermission>>(CommonConstants.PermissionRoleCacheKey);
+        if (success && cachedRoles != null)
         {
-            return cachedRoles!;
+            return cachedRoles;
         }
 
         // If not in cache, fetch data
@@ -358,17 +358,57 @@ public class PermissionService : IPermissionService
         }
         
         // Cache the results for 10 minutes
-        var cacheOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
-        
-        _cache.Set(CommonConstants.PermissionRoleCacheKey, commonRoles, cacheOptions);
+        await _cache.SetAsync(CommonConstants.PermissionRoleCacheKey, commonRoles, TimeSpan.FromMinutes(10));
         
         return commonRoles;
     }
 
     public void InvalidateRolePermissionCache()
     {
-        _cache.Remove(CommonConstants.PermissionRoleCacheKey);
+        _ = Task.Run(async () => await _cache.RemoveAsync(CommonConstants.PermissionRoleCacheKey));
+    }
+
+    /// <summary>
+    /// Checks if a permission can be assigned to a role based on hierarchical scope rules.
+    /// Higher scope roles can have permissions from their scope and all lower scopes.
+    /// Hierarchy: Internal(1) -> Tenant(2) -> Site(4) -> Default(8)
+    /// Null permissions can be assigned to any role.
+    /// </summary>
+    /// <param name="permissionScope">The scope of the permission (can be null)</param>
+    /// <param name="roleScope">The scope of the role</param>
+    /// <returns>True if the permission can be assigned to the role</returns>
+    public static bool CanPermissionBeAssignedToRole(RoleScope? permissionScope, RoleScope roleScope)
+    {
+        // Null permissions can be assigned to any role
+        if (!permissionScope.HasValue)
+        {
+            return true;
+        }
+
+        // Get the hierarchical level for comparison
+        var permissionLevel = GetScopeHierarchyLevel(permissionScope.Value);
+        var roleLevel = GetScopeHierarchyLevel(roleScope);
+
+        // Higher scope roles (lower level numbers) can have permissions from their scope and all lower scopes
+        return roleLevel <= permissionLevel;
+    }
+
+    /// <summary>
+    /// Gets the hierarchical level of a scope for comparison.
+    /// Lower numbers = higher in hierarchy (more permissions).
+    /// </summary>
+    /// <param name="scope">The role scope</param>
+    /// <returns>Hierarchical level (1=Internal, 2=Tenant, 3=Site, 4=Default)</returns>
+    private static int GetScopeHierarchyLevel(RoleScope scope)
+    {
+        return scope switch
+        {
+            RoleScope.Internal => 1, // Highest level - can have all permissions
+            RoleScope.Tenant => 2,   // Can have Tenant, Site, Default permissions
+            RoleScope.Site => 3,     // Can have Site, Default permissions  
+            RoleScope.Default => 4,  // Lowest level - can only have Default permissions
+            _ => int.MaxValue        // Unknown scopes get lowest priority
+        };
     }
     
 }

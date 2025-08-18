@@ -10,6 +10,8 @@ public static class RolePermissionConstants
     
     public const string SiteManagerUsers = "site.manage.users";
     
+    public const string SiteManageConfig = "site.manage.config";
+    
     public const string SysAdminManageUsers = "systemadmin.manage.users";
     
     public const string SysAdminManageTenants = "systemadmin.manage.tenants";

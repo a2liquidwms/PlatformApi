@@ -10,4 +10,5 @@ public class AuthTokenBundle
     
     public Guid? TenantId { get; set; }
     public Guid? SiteId { get; set; }
+    public string? TenantSubdomain { get; set; }
 } 

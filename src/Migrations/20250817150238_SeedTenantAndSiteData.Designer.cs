@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PlatformApi.Data;
@@ -11,9 +12,11 @@ using PlatformApi.Data;
 namespace PlatformApi.Migrations
 {
     [DbContext(typeof(PlatformDbContext))]
-    partial class PlatformDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250817150238_SeedTenantAndSiteData")]
+    partial class SeedTenantAndSiteData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -640,7 +643,7 @@ namespace PlatformApi.Migrations
                         {
                             Id = new Guid("1237a8e7-96cc-47d4-a2f3-9d66fe3e3f6d"),
                             CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
-                            PermissionCode = "tenant.manage.config",
+                            PermissionCode = "tenant.admin.manage.users",
                             RoleId = new Guid("87ad21c9-d406-4f00-90dd-d8d9ee99805b")
                         },
                         new

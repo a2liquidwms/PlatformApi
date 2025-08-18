@@ -26,6 +26,5 @@ public class AddUserToSiteDto
     [Required]
     public required Guid SiteId { get; set; }
     
-    [Required]
-    public required Guid RoleId { get; set; }
+    public Guid? RoleId { get; set; }
 }

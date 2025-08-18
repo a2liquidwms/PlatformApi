@@ -91,6 +91,14 @@ public class UserController : ControllerBase
             
             return Ok(new { Message = "User added to tenant successfully" });
         }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding user to tenant");
@@ -98,7 +106,7 @@ public class UserController : ControllerBase
         }
     }
 
-    // Add user to site (with site role required)
+    // Add user to site (role is optional)
     [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
     [HttpPost("site/add")]
     public async Task<ActionResult> AddUserToSite([FromBody] AddUserToSiteDto dto)
@@ -108,10 +116,18 @@ public class UserController : ControllerBase
             var result = await _userService.AddUserToSite(dto);
             if (!result)
             {
-                return BadRequest("Failed to add user to site. User or site may not exist, or role is invalid.");
+                return BadRequest("Failed to add user to site. User or site may not exist.");
             }
             
             return Ok(new { Message = "User added to site successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
@@ -123,11 +139,20 @@ public class UserController : ControllerBase
     // Add user to site role
     [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
     [HttpPost("role/site/add")]
-    public async Task<ActionResult> AddUserToRoleSite([FromBody] AddUserToRoleDto dto)
+    public async Task<ActionResult> AddUserToRoleSite([FromBody] AddUserToSiteRoleDto dto)
     {
         try
         {
-            await _userService.AddUserToRole(dto, RoleScope.Site);
+            // Map to the existing DTO format for service call
+            var addUserToRoleDto = new AddUserToRoleDto
+            {
+                Email = dto.Email,
+                SiteId = dto.SiteId,
+                RoleId = dto.RoleId,
+                Scope = RoleScope.Site
+            };
+            
+            await _userService.AddUserToRole(addUserToRoleDto, RoleScope.Site);
             return Ok(new { Message = "User added to site role successfully" });
         }
         catch (NotFoundException ex)
@@ -148,11 +173,20 @@ public class UserController : ControllerBase
     // Add user to tenant role
     [RequirePermission(RolePermissionConstants.TenantManageUsers)]
     [HttpPost("role/tenant/add")]
-    public async Task<ActionResult> AddUserToRoleTenant([FromBody] AddUserToRoleDto dto)
+    public async Task<ActionResult> AddUserToRoleTenant([FromBody] AddUserToTenantRoleDto dto)
     {
         try
         {
-            await _userService.AddUserToRole(dto, RoleScope.Tenant);
+            // Map to the existing DTO format for service call
+            var addUserToRoleDto = new AddUserToRoleDto
+            {
+                Email = dto.Email,
+                TenantId = dto.TenantId,
+                RoleId = dto.RoleId,
+                Scope = RoleScope.Tenant
+            };
+            
+            await _userService.AddUserToRole(addUserToRoleDto, RoleScope.Tenant);
             return Ok(new { Message = "User added to tenant role successfully" });
         }
         catch (NotFoundException ex)
@@ -173,11 +207,19 @@ public class UserController : ControllerBase
     // Add user to internal role
   //  [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
     [HttpPost("role/internal/add")]
-    public async Task<ActionResult> AddUserToRoleInternal([FromBody] AddUserToRoleDto dto)
+    public async Task<ActionResult> AddUserToRoleInternal([FromBody] AddUserToInternalRoleDto dto)
     {
         try
         {
-            await _userService.AddUserToRole(dto, RoleScope.Internal);
+            // Map to the existing DTO format for service call
+            var addUserToRoleDto = new AddUserToRoleDto
+            {
+                Email = dto.Email,
+                RoleId = dto.RoleId,
+                Scope = RoleScope.Internal
+            };
+            
+            await _userService.AddUserToRole(addUserToRoleDto, RoleScope.Internal);
             return Ok(new { Message = "User added to internal role successfully" });
         }
         catch (NotFoundException ex)
