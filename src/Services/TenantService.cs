@@ -147,6 +147,23 @@ public class TenantService : ITenantService
             .FirstOrDefaultAsync(s => s.Id == id);
     }
 
+    public async Task<Site?> GetSiteConfigById(Guid id, Guid tenantId)
+    {
+        var site = await GetSiteById(id);
+        
+        if (site == null)
+        {
+            return null;
+        }
+        
+        if (site.TenantId != tenantId)
+        {
+            throw new InvalidDataException("Site does not belong to the specified tenant");
+        }
+        
+        return site;
+    }
+
     public async Task<Site> AddSite(Site site)
     {
         var existingTenant = await GetById(site.TenantId);

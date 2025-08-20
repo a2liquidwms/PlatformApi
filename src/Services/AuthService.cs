@@ -509,7 +509,7 @@ public class AuthService : IAuthService
         var allRoles = new List<Role>();
         
         // Always get Internal and Default roles
-        var defaultRoles = await GetUserRolesWithPermissions(user.Id, RoleScope.Default, includePermissions: includePermissions);
+        var defaultRoles = await GetDefaultRolesWithPermissions(tenantId, siteId, includePermissions);
         var internalRoles = await GetUserRolesWithPermissions(user.Id, RoleScope.Internal, includePermissions: includePermissions);
         
         allRoles.AddRange(defaultRoles);
@@ -555,6 +555,38 @@ public class AuthService : IAuthService
         }
         
         return await roleQuery.ToListAsync();
+    }
+
+    private async Task<List<Role>> GetDefaultRolesWithPermissions(Guid? tenantId = null, Guid? siteId = null, bool includePermissions = true)
+    {
+        var queries = new List<IQueryable<Role>>();
+        
+        // Always include global default roles (no tenant, no site)
+        queries.Add(_context.Roles.Where(r => r.Scope == RoleScope.Default && r.TenantId == null && r.SiteId == null));
+        
+        // Include tenant-specific default roles if we have a tenant context
+        if (tenantId.HasValue)
+        {
+            queries.Add(_context.Roles.Where(r => r.Scope == RoleScope.Default && r.TenantId == tenantId && r.SiteId == null));
+        }
+        
+        // Include site-specific default roles if we have a site context
+        if (siteId.HasValue && tenantId.HasValue)
+        {
+            queries.Add(_context.Roles.Where(r => r.Scope == RoleScope.Default && r.TenantId == tenantId && r.SiteId == siteId));
+        }
+        
+        // Union all queries
+        var query = queries.Aggregate((q1, q2) => q1.Union(q2));
+        
+        if (includePermissions)
+        {
+            query = query
+                .Include(r => r.RolePermissions)!
+                    .ThenInclude(rp => rp.Permission);
+        }
+        
+        return await query.ToListAsync();
     }
 
     private async Task<List<Claim>> GetContextualRoleClaims(AuthUser user, Guid? tenantId, Guid? siteId)

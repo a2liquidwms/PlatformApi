@@ -15,6 +15,7 @@ public interface ITenantService
     Task<bool> UpdateTenantConfig(Guid tenantId, TenantConfig obj);
     
     Task<Site?> GetSiteById(Guid id);
+    Task<Site?> GetSiteConfigById(Guid id, Guid tenantId);
     Task<Site> AddSite(Site site);
     Task<bool> UpdateSite(Guid id, Site site);
     Task<bool> DeleteSite(Guid id);

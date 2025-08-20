@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Permissions;
+using PlatformApi.Common.Tenant;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
@@ -17,12 +18,14 @@ public class TenantController : ControllerBase
     private readonly ILogger<TenantController> _logger;
     private readonly IMapper _mapper;
     private readonly ITenantService _tenantService;
+    private readonly TenantHelper _tenantHelper;
 
-    public TenantController(ILogger<TenantController> logger,IMapper mapper, ITenantService tenantService)
+    public TenantController(ILogger<TenantController> logger,IMapper mapper, ITenantService tenantService, TenantHelper tenantHelper)
     {
         _tenantService = tenantService;
         _logger = logger;
         _mapper = mapper;
+        _tenantHelper = tenantHelper;
     }
     
     [RequirePermission(RolePermissionConstants.SysAdminManageTenants)]
@@ -196,6 +199,31 @@ public class TenantController : ControllerBase
                 return NotFound();
             }
             return Ok(_mapper.Map<SiteDto>(site));
+        }
+        catch (NotFoundException)
+        {
+            return NotFound();
+        }
+    }
+    
+    //allow any auth user
+    [RequireTenantAccess]
+    [HttpGet("siteconfig/{id}")]
+    public async Task<ActionResult<SiteDto>> GetSiteConfigById(Guid id)
+    {
+        try
+        {
+            var tenantId = _tenantHelper.GetTenantId();
+            var siteConfig = await _tenantService.GetSiteConfigById(id, tenantId);
+            if (siteConfig == null)
+            {
+                return NotFound();
+            }
+            return Ok(_mapper.Map<SiteDto>(siteConfig));
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
         }
         catch (NotFoundException)
         {
