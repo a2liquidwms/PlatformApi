@@ -361,4 +361,54 @@ public class AuthController : ControllerBase
             return StatusCode(500, "Internal server error");
         }
     }
+
+    [Authorize]
+    [HttpPost("switch-tenant")]
+    public async Task<ActionResult<AuthTokenBundle>> SwitchTenant([FromBody] SwitchTenantRequest request)
+    {
+        try
+        {
+            var userId = _userHelper.GetCurrentUserId();
+            var tokenBundle = await _authService.SwitchTenant(userId, request.TenantId);
+            return Ok(tokenBundle);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error switching tenant for user {UserId} to tenant {TenantId}", _userHelper.GetCurrentUserId(), request.TenantId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [Authorize]
+    [HttpPost("switch-site")]
+    public async Task<ActionResult<AuthTokenBundle>> SwitchSite([FromBody] SwitchSiteRequest request)
+    {
+        try
+        {
+            var userId = _userHelper.GetCurrentUserId();
+            var tokenBundle = await _authService.SwitchSite(userId, request.SiteId);
+            return Ok(tokenBundle);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error switching site for user {UserId} to site {SiteId}", _userHelper.GetCurrentUserId(), request.SiteId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
 }

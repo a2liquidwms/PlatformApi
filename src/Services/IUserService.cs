@@ -8,6 +8,7 @@ public interface IUserService
     // Get users by scope
     Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsers(Guid tenantId);
     Task<IEnumerable<SiteUserWithRolesDto>> GetSiteUsers(Guid siteId);
+    Task<IEnumerable<InternalUserWithRolesDto>> GetInternalUsers();
     
     // Add users to scope
     Task<bool> AddUserToTenant(AddUserToTenantDto dto);
@@ -16,7 +17,9 @@ public interface IUserService
     // Role management (scope-aware)
     Task<bool> AddUserToRole(AddUserToRoleDto dto);
     Task<bool> AddUserToRole(AddUserToRoleDto dto, RoleScope expectedScope);
-    Task<bool> RemoveUserFromRole(RemoveUserFromRoleDto dto);
+    
+    // Secure role removal (scope-specific)
+    Task RemoveUserFromRole(RemoveUserFromRoleDto dto, RoleScope expectedScope);
     
     // User lookup helpers
     Task<AuthUser?> GetUserByEmail(string email);

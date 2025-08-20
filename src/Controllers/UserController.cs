@@ -76,6 +76,23 @@ public class UserController : ControllerBase
         }
     }
 
+    // Get all internal users
+    [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
+    [HttpGet("internal")]
+    public async Task<ActionResult<IEnumerable<InternalUserWithRolesDto>>> GetInternalUsers()
+    {
+        try
+        {
+            var users = await _userService.GetInternalUsers();
+            return Ok(users);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting internal users");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
     // Add user to tenant (tenant role optional)
     [RequirePermission(RolePermissionConstants.TenantManageUsers)]
     [HttpPost("tenant/add")]
@@ -205,7 +222,7 @@ public class UserController : ControllerBase
     }
 
     // Add user to internal role
-  //  [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
+    [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
     [HttpPost("role/internal/add")]
     public async Task<ActionResult> AddUserToRoleInternal([FromBody] AddUserToInternalRoleDto dto)
     {
@@ -237,27 +254,111 @@ public class UserController : ControllerBase
         }
     }
 
-    // Remove user from role (scope-aware)
-    [RequirePermission("tenant.admin.manage.users")]
-    [HttpPost("role/remove")]
-    public async Task<ActionResult> RemoveUserFromRole([FromBody] RemoveUserFromRoleDto dto)
+    // Remove user from tenant role
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
+    [HttpPost("role/tenant/remove")]
+    public async Task<ActionResult> RemoveUserFromTenantRole([FromBody] RemoveUserFromTenantRoleDto dto)
     {
         try
         {
-            var result = await _userService.RemoveUserFromRole(dto);
-            if (!result)
+            // Map to the existing DTO format for service call
+            var removeUserFromRoleDto = new RemoveUserFromRoleDto
             {
-                return BadRequest("Failed to remove user from role. Assignment may not exist.");
-            }
+                Email = dto.Email,
+                TenantId = dto.TenantId,
+                SiteId = null,
+                RoleId = dto.RoleId,
+                Scope = RoleScope.Tenant
+            };
             
-            return Ok(new { Message = "User removed from role successfully" });
+            await _userService.RemoveUserFromRole(removeUserFromRoleDto, RoleScope.Tenant);
+            return Ok(new { Message = "User removed from tenant role successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error removing user from role");
+            _logger.LogError(ex, "Error removing user from tenant role");
             return StatusCode(500, "Internal server error");
         }
     }
+
+    // Remove user from site role
+    [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
+    [HttpPost("role/site/remove")]
+    public async Task<ActionResult> RemoveUserFromSiteRole([FromBody] RemoveUserFromSiteRoleDto dto)
+    {
+        try
+        {
+            // Map to the existing DTO format for service call
+            var removeUserFromRoleDto = new RemoveUserFromRoleDto
+            {
+                Email = dto.Email,
+                TenantId = null,
+                SiteId = dto.SiteId,
+                RoleId = dto.RoleId,
+                Scope = RoleScope.Site
+            };
+            
+            await _userService.RemoveUserFromRole(removeUserFromRoleDto, RoleScope.Site);
+            return Ok(new { Message = "User removed from site role successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing user from site role");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Remove user from internal role
+    [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
+    [HttpPost("role/internal/remove")]
+    public async Task<ActionResult> RemoveUserFromInternalRole([FromBody] RemoveUserFromInternalRoleDto dto)
+    {
+        try
+        {
+            // Map to the existing DTO format for service call
+            var removeUserFromRoleDto = new RemoveUserFromRoleDto
+            {
+                Email = dto.Email,
+                TenantId = null,
+                SiteId = null,
+                RoleId = dto.RoleId,
+                Scope = RoleScope.Internal
+            };
+            
+            await _userService.RemoveUserFromRole(removeUserFromRoleDto, RoleScope.Internal);
+            return Ok(new { Message = "User removed from internal role successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing user from internal role");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
 
     // Get current user's tenants
     [Authorize]

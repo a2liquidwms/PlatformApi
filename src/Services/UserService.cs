@@ -93,6 +93,29 @@ public class UserService : IUserService
         return result;
     }
 
+    public async Task<IEnumerable<InternalUserWithRolesDto>> GetInternalUsers()
+    {
+        var usersWithRoles = await _context.UserRoles
+            .Where(ur => ur.Scope == RoleScope.Internal)
+            .Include(ur => ur.User)
+            .Include(ur => ur.Role)
+            .Where(ur => ur.User != null && ur.User.Email != null)
+            .GroupBy(ur => new { ur.UserId, ur.User!.Email })
+            .Select(g => new InternalUserWithRolesDto
+            {
+                UserId = g.Key.UserId,
+                Email = g.Key.Email!,
+                Roles = g.Select(ur => new RoleNoPermissionDto
+                {
+                    Id = ur.Role!.Id.ToString(),
+                    Name = ur.Role.Name
+                }).ToList()
+            })
+            .ToListAsync();
+
+        return usersWithRoles;
+    }
+
     public async Task<bool> AddUserToTenant(AddUserToTenantDto dto)
     {
         var user = await GetUserByEmail(dto.Email);
@@ -286,23 +309,37 @@ public class UserService : IUserService
         return true;
     }
 
-    public async Task<bool> RemoveUserFromRole(RemoveUserFromRoleDto dto)
+
+    public async Task RemoveUserFromRole(RemoveUserFromRoleDto dto, RoleScope expectedScope)
     {
         var user = await GetUserByEmail(dto.Email);
-        if (user == null) return false;
+        if (user == null)
+            throw new NotFoundException($"User with email {dto.Email} not found");
+
+        // First verify the role exists and matches the expected scope
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == dto.RoleId);
+        if (role == null)
+            throw new NotFoundException($"Role with ID {dto.RoleId} not found");
+
+        if (role.Scope != expectedScope)
+            throw new InvalidDataException($"Role {role.Name} is not a {expectedScope.ToString().ToLower()} role");
+
+        // Validate that the DTO scope matches the expected scope
+        if (dto.Scope != expectedScope)
+            throw new InvalidDataException($"Request scope {dto.Scope} does not match expected scope {expectedScope}");
 
         var assignment = await _context.UserRoles
             .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
                                        ura.RoleId == dto.RoleId &&
                                        ura.TenantId == dto.TenantId &&
                                        ura.SiteId == dto.SiteId &&
-                                       ura.Scope == dto.Scope);
+                                       ura.Scope == expectedScope);
 
-        if (assignment == null) return false;
+        if (assignment == null)
+            throw new NotFoundException("User role assignment not found");
 
         _context.UserRoles.Remove(assignment);
         await _uow.CompleteAsync();
-        return true;
     }
 
     public async Task<AuthUser?> GetUserByEmail(string email)
