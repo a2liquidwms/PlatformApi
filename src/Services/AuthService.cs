@@ -501,6 +501,13 @@ public class AuthService : IAuthService
         var roleClaims = await GetContextualRoleClaims(user, tenantId, siteId);
         allClaims.AddRange(roleClaims);
 
+        // Add tenant and site count claims for UI decision-making
+        var tenantCount = await _userService.GetUserTenantCount(user.Id);
+        var siteCount = await _userService.GetUserSiteCount(user.Id);
+        
+        allClaims.Add(new Claim(CommonConstants.TenantCountClaim, tenantCount.ToString()));
+        allClaims.Add(new Claim(CommonConstants.SiteCountClaim, siteCount.ToString()));
+
         return allClaims;
     }
 

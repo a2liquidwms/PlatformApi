@@ -537,6 +537,44 @@ public class UserService : IUserService
         return siteDtos;
     }
 
+    public async Task<int> GetUserTenantCount(Guid userId)
+    {
+        // Always use forLogin=true behavior for system admin check
+        bool isSystemAdmin = await IsSystemAdminByRoles(userId);
+
+        if (isSystemAdmin)
+        {
+            // System admin has access to all tenants
+            return await _context.Tenants.CountAsync();
+        }
+
+        // Regular user - count tenants they have explicit access to
+        return await _context.UserTenants
+            .Where(ut => ut.UserId == userId)
+            .Select(ut => ut.TenantId)
+            .Distinct()
+            .CountAsync();
+    }
+
+    public async Task<int> GetUserSiteCount(Guid userId)
+    {
+        // Always use forLogin=true behavior for system admin check
+        bool isSystemAdmin = await IsSystemAdminByRoles(userId);
+
+        if (isSystemAdmin)
+        {
+            // System admin has access to all sites across all tenants
+            return await _context.Sites.CountAsync();
+        }
+
+        // Regular user - count sites they have explicit access to across all tenants
+        return await _context.UserSites
+            .Where(us => us.UserId == userId)
+            .Select(us => us.SiteId)
+            .Distinct()
+            .CountAsync();
+    }
+
     public async Task<bool> HasTenantAccess(Guid userId, Guid tenantId, bool forLogin = false)
     {
         // Leverage GetUserTenants which already handles system admin permissions and caching

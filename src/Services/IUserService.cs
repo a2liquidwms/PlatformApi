@@ -30,6 +30,10 @@ public interface IUserService
     Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId, bool forLogin = false);
     Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid tenantId, bool forLogin = false);
     
+    // User membership counts
+    Task<int> GetUserTenantCount(Guid userId);
+    Task<int> GetUserSiteCount(Guid userId);
+    
     // User membership validation
     Task<bool> HasTenantAccess(Guid userId, Guid tenantId, bool forLogin = false);
     Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId, bool forLogin = false);

@@ -19,5 +19,9 @@ public static class CommonConstants
     
     public const string RolesClaim = "roles";
     
+    public const string TenantCountClaim = "tenant_count";
+    
+    public const string SiteCountClaim = "site_count";
+    
     public const string PermissionRoleCacheKey = "PermissionRoleCacheKey";
 }
