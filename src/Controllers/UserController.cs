@@ -414,4 +414,54 @@ public class UserController : ControllerBase
         }
     }
 
+    // Remove user from tenant (removes from all sites and roles within tenant)
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
+    [HttpDelete("tenant/{tenantId:guid}/user/{userId:guid}")]
+    public async Task<ActionResult> RemoveUserFromTenant([FromRoute] Guid tenantId, [FromRoute] Guid userId)
+    {
+        try
+        {
+            await _userService.RemoveUserFromTenant(userId, tenantId);
+            return Ok(new { Message = "User removed from tenant successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing user {UserId} from tenant {TenantId}", userId, tenantId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Remove user from site (removes from all roles within site)
+    [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
+    [HttpDelete("site/{siteId:guid}/user/{userId:guid}")]
+    public async Task<ActionResult> RemoveUserFromSite([FromRoute] Guid siteId, [FromRoute] Guid userId)
+    {
+        try
+        {
+            await _userService.RemoveUserFromSite(userId, siteId);
+            return Ok(new { Message = "User removed from site successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing user {UserId} from site {SiteId}", userId, siteId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
 }

@@ -44,6 +44,10 @@ public interface IUserService
     Task<UserExistenceCheckDto> CheckUserExistenceAsync(string email, Guid tenantId);
     Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId);
     
+    // User removal methods
+    Task RemoveUserFromTenant(Guid userId, Guid tenantId);
+    Task RemoveUserFromSite(Guid userId, Guid siteId);
+    
     // Cache invalidation methods
     void InvalidateUserTenantCache(Guid userId);
     void InvalidateAllUserTenantCaches();

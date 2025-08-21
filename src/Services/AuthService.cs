@@ -52,7 +52,7 @@ public class AuthService : IAuthService
         _emailService = emailService;
         _brandingService = brandingService;
         _snsService = snsService;
-        _refreshTokenDays = configuration["AUTH_REFRESH_TOKEN_DAYS"] ?? "5";
+        _refreshTokenDays = configuration["AUTH_REFRESH_TOKEN_DAYS"] ?? "180";
         _accessTokenMinutes = configuration["AUTH_ACCESS_TOKEN_MINUTES"] ?? "5";
     }
 

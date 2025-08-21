@@ -793,4 +793,114 @@ public class UserService : IUserService
         _logger.LogDebug("Direct role check for system admin permission: {HasPermission} for user {UserId}", hasSystemAdminPermission, userId);
         return hasSystemAdminPermission;
     }
+
+    public async Task RemoveUserFromTenant(Guid userId, Guid tenantId)
+    {
+        // Validate user exists
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            throw new NotFoundException($"User with ID {userId} not found");
+
+        // Remove all tenant-scoped roles for this user in this tenant
+        var tenantRoles = await _context.UserRoles
+            .Where(ur => ur.UserId == userId && 
+                        ur.Scope == RoleScope.Tenant && 
+                        ur.TenantId == tenantId)
+            .ToListAsync();
+        
+        _context.UserRoles.RemoveRange(tenantRoles);
+
+        // Remove all site-scoped roles for this user in all sites within this tenant
+        var siteRoles = await _context.UserRoles
+            .Where(ur => ur.UserId == userId && 
+                        ur.Scope == RoleScope.Site && 
+                        ur.TenantId == tenantId)
+            .ToListAsync();
+        
+        _context.UserRoles.RemoveRange(siteRoles);
+
+        // Remove from UserTenants table
+        var userTenant = await _context.UserTenants
+            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TenantId == tenantId);
+        
+        if (userTenant != null)
+        {
+            _context.UserTenants.Remove(userTenant);
+        }
+
+        // Remove from UserSites table for all sites in this tenant
+        var userSites = await _context.UserSites
+            .Where(us => us.UserId == userId && us.TenantId == tenantId)
+            .ToListAsync();
+        
+        _context.UserSites.RemoveRange(userSites);
+
+        // Revoke all refresh tokens for this user in this tenant context
+        var refreshTokens = await _context.RefreshTokens
+            .Where(rt => rt.UserId == userId && rt.TenantId == tenantId && !rt.IsRevoked)
+            .ToListAsync();
+        
+        foreach (var token in refreshTokens)
+        {
+            token.IsRevoked = true;
+        }
+
+        await _uow.CompleteAsync();
+
+        // Invalidate caches
+        InvalidateUserTenantCache(userId);
+        InvalidateUserSiteCache(userId, tenantId);
+
+        _logger.LogInformation("Removed user {UserId} from tenant {TenantId} including all roles, associations, and refresh tokens", userId, tenantId);
+    }
+
+    public async Task RemoveUserFromSite(Guid userId, Guid siteId)
+    {
+        // Validate user exists
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            throw new NotFoundException($"User with ID {userId} not found");
+
+        // Get site info to validate tenant
+        var site = await _context.Sites
+            .FirstOrDefaultAsync(s => s.Id == siteId);
+        
+        if (site == null)
+            throw new NotFoundException($"Site with ID {siteId} not found");
+
+        // Remove all site-scoped roles for this user in this specific site
+        var siteRoles = await _context.UserRoles
+            .Where(ur => ur.UserId == userId && 
+                        ur.Scope == RoleScope.Site && 
+                        ur.SiteId == siteId)
+            .ToListAsync();
+        
+        _context.UserRoles.RemoveRange(siteRoles);
+
+        // Remove from UserSites table for this specific site
+        var userSite = await _context.UserSites
+            .FirstOrDefaultAsync(us => us.UserId == userId && us.SiteId == siteId);
+        
+        if (userSite != null)
+        {
+            _context.UserSites.Remove(userSite);
+        }
+
+        // Revoke all refresh tokens for this user in this site context
+        var refreshTokens = await _context.RefreshTokens
+            .Where(rt => rt.UserId == userId && rt.SiteId == siteId && !rt.IsRevoked)
+            .ToListAsync();
+        
+        foreach (var token in refreshTokens)
+        {
+            token.IsRevoked = true;
+        }
+
+        await _uow.CompleteAsync();
+
+        // Invalidate caches
+        InvalidateUserSiteCache(userId, site.TenantId);
+
+        _logger.LogInformation("Removed user {UserId} from site {SiteId} including all roles, associations, and refresh tokens", userId, siteId);
+    }
 }
