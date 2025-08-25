@@ -724,6 +724,15 @@ public class UserService : IUserService
         if (user == null)
             throw new NotFoundException($"User with ID {userId} not found");
 
+        // Remove all site-scoped roles for this user in all sites within this tenant
+        var siteRoles = await _context.UserRoles
+            .Where(ur => ur.UserId == userId && 
+                         ur.Scope == RoleScope.Site && 
+                         ur.TenantId == tenantId)
+            .ToListAsync();
+        
+        _context.UserRoles.RemoveRange(siteRoles);
+        
         // Remove all tenant-scoped roles for this user in this tenant
         var tenantRoles = await _context.UserRoles
             .Where(ur => ur.UserId == userId && 
@@ -732,17 +741,7 @@ public class UserService : IUserService
             .ToListAsync();
         
         _context.UserRoles.RemoveRange(tenantRoles);
-
-        // Remove all site-scoped roles for this user in all sites within this tenant
-        var siteRoles = await _context.UserRoles
-            .Where(ur => ur.UserId == userId && 
-                        ur.Scope == RoleScope.Site && 
-                        ur.TenantId == tenantId)
-            .ToListAsync();
         
-        _context.UserRoles.RemoveRange(siteRoles);
-
-
         // Revoke all refresh tokens for this user in this tenant context
         var refreshTokens = await _context.RefreshTokens
             .Where(rt => rt.UserId == userId && rt.TenantId == tenantId && !rt.IsRevoked)
