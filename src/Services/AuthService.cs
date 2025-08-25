@@ -78,7 +78,7 @@ public class AuthService : IAuthService
         return result;
     }
 
-    public async Task<AuthTokenBundle> Login(string email, string password, Guid? tenantId = null, Guid? siteId = null)
+    public async Task<AuthTokenBundleWithRefresh> Login(string email, string password, Guid? tenantId = null, Guid? siteId = null)
     {
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null)
@@ -268,26 +268,28 @@ public class AuthService : IAuthService
     //     return true;
     // }
 
-    public async Task<AuthTokenBundle> RefreshToken(Guid userId, string refreshToken)
+    public async Task<AuthTokenBundleWithRefresh> RefreshToken(string refreshToken)
     {
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user == null || user.Id != userId)
-        {
-            _logger.LogError("User Not Match Refresh Token");
-            throw new UnauthorizedAccessException();
-        }
-        
+        // Find the refresh token first to get the userId - more secure approach
         var oldRefreshToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == refreshToken.Trim() && rt.UserId == userId);
+            .FirstOrDefaultAsync(rt => rt.Token == refreshToken.Trim() && !rt.IsRevoked);
         
-        if (oldRefreshToken == null || oldRefreshToken.IsRevoked || oldRefreshToken.Expires < DateTime.UtcNow)
+        if (oldRefreshToken == null || oldRefreshToken.Expires < DateTime.UtcNow)
         {
-            _logger.LogError("Refresh Token not found or Expired");
+            _logger.LogError("Refresh Token not found, revoked, or expired");
             throw new UnauthorizedAccessException();
         }
         
-        //revoke all other refresh tokens
-        var otherRefreshToken = _context.RefreshTokens.Where(rt => rt.UserId == userId && !rt.IsRevoked);
+        // Now get the user from the refresh token
+        var user = await _userManager.FindByIdAsync(oldRefreshToken.UserId.ToString());
+        if (user == null)
+        {
+            _logger.LogError("User not found for refresh token");
+            throw new UnauthorizedAccessException();
+        }
+        
+        //revoke all other refresh tokens for this user
+        var otherRefreshToken = _context.RefreshTokens.Where(rt => rt.UserId == oldRefreshToken.UserId && !rt.IsRevoked);
 
         foreach (var token in otherRefreshToken)
         {
@@ -298,6 +300,31 @@ public class AuthService : IAuthService
         var tokenBundle = await GenerateTokenBundle(user, oldRefreshToken.TenantId, oldRefreshToken.SiteId);
 
         return tokenBundle;
+    }
+
+    public async Task<bool> Logout(Guid userId)
+    {
+        try
+        {
+            // Revoke ALL refresh tokens for this user (logout from all devices)
+            var userRefreshTokens = _context.RefreshTokens
+                .Where(rt => rt.UserId == userId && !rt.IsRevoked);
+
+            foreach (var token in userRefreshTokens)
+            {
+                token.IsRevoked = true;
+            }
+
+            await _uow.CompleteAsync();
+            _logger.LogInformation("User {UserId} logged out - all refresh tokens revoked", userId);
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during logout for user {UserId}", userId);
+            return false;
+        }
     }
 
     // EMAIL METHODS WITH BRANDING SUPPORT
@@ -418,7 +445,7 @@ public class AuthService : IAuthService
 
     // EXISTING METHODS (unchanged)
 
-    private async Task<AuthTokenBundle> GenerateTokenBundle(AuthUser user, Guid? tenantId = null, Guid? siteId = null)
+    private async Task<AuthTokenBundleWithRefresh> GenerateTokenBundle(AuthUser user, Guid? tenantId = null, Guid? siteId = null)
     {
         var tokenReturn = await GenerateJwtToken(user, tenantId, siteId);
         var refreshToken = await GenerateRefreshToken(user, tenantId, siteId);
@@ -431,7 +458,7 @@ public class AuthService : IAuthService
             tenantSubdomain = tenant?.SubDomain;
         }
 
-        return new AuthTokenBundle()
+        return new AuthTokenBundleWithRefresh()
         {
             AccessToken = tokenReturn.AccessToken,
             TokenType = "Bearer",
@@ -486,10 +513,18 @@ public class AuthService : IAuthService
         };
         allClaims.AddRange(defaultClaims);
 
+        // Add tenant count claim for UI decision-making
+        var tenantCount = await _userService.GetUserTenantCount(user.Id);
+        allClaims.Add(new Claim(CommonConstants.TenantCountClaim, tenantCount.ToString()));
+        
         // Add context claims (tenant/site)
         if (tenantId.HasValue)
         {
             allClaims.Add(new Claim(CommonConstants.ActiveTenantClaim, tenantId.Value.ToString()));
+            
+            // Add site count for this tenant
+            var siteCount = await _userService.GetUserSiteCount(user.Id, tenantId.Value);
+            allClaims.Add(new Claim(CommonConstants.SiteCountClaim, siteCount.ToString()));
         }
         
         if (siteId.HasValue)
@@ -500,13 +535,6 @@ public class AuthService : IAuthService
         // Get role claims based on context
         var roleClaims = await GetContextualRoleClaims(user, tenantId, siteId);
         allClaims.AddRange(roleClaims);
-
-        // Add tenant and site count claims for UI decision-making
-        var tenantCount = await _userService.GetUserTenantCount(user.Id);
-        var siteCount = await _userService.GetUserSiteCount(user.Id);
-        
-        allClaims.Add(new Claim(CommonConstants.TenantCountClaim, tenantCount.ToString()));
-        allClaims.Add(new Claim(CommonConstants.SiteCountClaim, siteCount.ToString()));
 
         return allClaims;
     }
@@ -633,7 +661,7 @@ public class AuthService : IAuthService
         return refreshToken.Token;
     }
 
-    public async Task<AuthTokenBundle> SwitchTenant(Guid userId, Guid tenantId)
+    public async Task<AuthTokenBundleWithRefresh> SwitchTenant(Guid userId, Guid tenantId)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
@@ -662,7 +690,7 @@ public class AuthService : IAuthService
         return tokenBundle;
     }
 
-    public async Task<AuthTokenBundle> SwitchSite(Guid userId, Guid siteId)
+    public async Task<AuthTokenBundleWithRefresh> SwitchSite(Guid userId, Guid siteId)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)

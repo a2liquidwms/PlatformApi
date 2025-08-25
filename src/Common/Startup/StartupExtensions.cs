@@ -46,11 +46,42 @@ public static class StartupExtensions
         services.AddRouting(options => options.LowercaseUrls = true);
     }
 
-    public static void AddCorsCustom(this IServiceCollection services, IConfiguration configuration)
+    public static void 
+        AddCorsCustom(this IServiceCollection services, IConfiguration configuration)
     {
         var allowedHosts = configuration["CORS_ALLOWEDHOSTS"] ?? throw new InvalidOperationException();
+        
         services.AddCors(p =>
-            p.AddPolicy("corsPolicy", b => { b.WithOrigins(allowedHosts).AllowAnyMethod().AllowAnyHeader(); }));
+            p.AddPolicy("corsPolicy", b => {
+                b.SetIsOriginAllowed(origin =>
+                {
+                    // Handle comma-separated origins and wildcard patterns
+                    var allowedOrigins = allowedHosts.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                                    .Select(host => host.Trim());
+                    
+                    foreach (var allowedOrigin in allowedOrigins)
+                    {
+                        // Handle wildcard patterns for subdomains (e.g., "*.ui.myapp.local:3001")
+                        if (allowedOrigin.Contains("*"))
+                        {
+                            var pattern = allowedOrigin.Replace("*", ".*");
+                            if (System.Text.RegularExpressions.Regex.IsMatch(origin, $"^{pattern}$"))
+                            {
+                                return true;
+                            }
+                        }
+                        // Handle exact matches
+                        else if (origin == allowedOrigin)
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                })
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+            }));
     }
 
     public static void AddCommonStartupServices(this IServiceCollection services, IConfiguration configuration)

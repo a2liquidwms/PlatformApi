@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlatformApi.Common.Auth;
 using PlatformApi.Common.Constants;
+using PlatformApi.Common.Helpers;
 using PlatformApi.Common.Tenant;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
@@ -17,14 +18,47 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly TenantHelper _tenantHelper;
     private readonly UserHelper _userHelper;
+    private readonly IConfiguration _configuration;
+    private readonly IWebHostEnvironment _environment;
 
     public AuthController(ILogger<AuthController> logger, IAuthService authService,
-        TenantHelper tenantHelper, UserHelper userHelper)
+        TenantHelper tenantHelper, UserHelper userHelper, IConfiguration configuration, IWebHostEnvironment environment)
     {
         _logger = logger;
         _authService = authService;
         _tenantHelper = tenantHelper;
         _userHelper = userHelper;
+        _configuration = configuration;
+        _environment = environment;
+    }
+
+    private IActionResult HandleTokenResponse(AuthTokenBundleWithRefresh tokenBundle)
+    {
+        // Set refresh token as HttpOnly cookie
+        if (!string.IsNullOrEmpty(tokenBundle.RefreshToken))
+        {
+            this.SetRefreshTokenCookie(tokenBundle.RefreshToken, _configuration, _environment);
+        }
+        
+        // Return response with or without refresh token based on API testing header
+        if (this.HasApiTestingHeader())
+        {
+            return Ok(tokenBundle); // Include refresh token for API testing
+        }
+        else
+        {
+            // Return only access token in response body for web apps (clean response)
+            return Ok(new AuthTokenBundle
+            {
+                AccessToken = tokenBundle.AccessToken,
+                TokenType = tokenBundle.TokenType,
+                Expires = tokenBundle.Expires,
+                TenantId = tokenBundle.TenantId,
+                SiteId = tokenBundle.SiteId,
+                TenantSubdomain = tokenBundle.TenantSubdomain
+                // No refresh token property at all!
+            });
+        }
     }
 
     [AllowAnonymous]
@@ -44,16 +78,42 @@ public class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("login")]
-    public async Task<ActionResult<AuthTokenBundle>> Login([FromBody] LoginRequest request)
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         try
         {
             var token = await _authService.Login(request.Email, request.Password, request.TenantId, request.SiteId);
-            return Ok(token);
+            return HandleTokenResponse(token);
         }
         catch (Exception e)
         {
             return BadRequest(e.Message);
+        }
+    }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        try
+        {
+            // Get current user ID from JWT token
+            var userId = _userHelper.GetCurrentUserId();
+            
+            // Clear the refresh token cookie
+            this.ClearRefreshTokenCookie(_configuration);
+            
+            // Revoke ALL refresh tokens for this user (logout everywhere)
+            await _authService.Logout(userId);
+            
+            return Ok(new { Message = "Logged out successfully from all devices" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during logout for user {UserId}", _userHelper.GetCurrentUserId());
+            // Still clear the cookie even if database operation fails
+            this.ClearRefreshTokenCookie(_configuration);
+            return Ok(new { Message = "Logged out successfully from all devices" });
         }
     }
 
@@ -264,15 +324,25 @@ public class AuthController : ControllerBase
     
     [AllowAnonymous]
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
+    public async Task<IActionResult> Refresh()
     {
         try
         {
-            var tokenBundle = await _authService.RefreshToken(request.UserId, request.RefreshToken);
-            return Ok(tokenBundle);
+            // only looks at cookie.  No current way to handle refresh via Postman 
+            var refreshToken = this.GetRefreshTokenFromCookie();
+            
+            if (string.IsNullOrEmpty(refreshToken))
+            {
+                return BadRequest("Refresh token is required either in cookie or request body");
+            }
+            
+            var tokenBundle = await _authService.RefreshToken(refreshToken);
+            return HandleTokenResponse(tokenBundle);
         }
         catch (Exception)
         {
+            // Clear the refresh token cookie if refresh failed
+            this.ClearRefreshTokenCookie(_configuration);
             return Unauthorized("Invalid or Expired token");
         }
     }
@@ -364,13 +434,13 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpPost("switch-tenant")]
-    public async Task<ActionResult<AuthTokenBundle>> SwitchTenant([FromBody] SwitchTenantRequest request)
+    public async Task<IActionResult> SwitchTenant([FromBody] SwitchTenantRequest request)
     {
         try
         {
             var userId = _userHelper.GetCurrentUserId();
             var tokenBundle = await _authService.SwitchTenant(userId, request.TenantId);
-            return Ok(tokenBundle);
+            return HandleTokenResponse(tokenBundle);
         }
         catch (NotFoundException ex)
         {
@@ -389,13 +459,13 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpPost("switch-site")]
-    public async Task<ActionResult<AuthTokenBundle>> SwitchSite([FromBody] SwitchSiteRequest request)
+    public async Task<IActionResult> SwitchSite([FromBody] SwitchSiteRequest request)
     {
         try
         {
             var userId = _userHelper.GetCurrentUserId();
             var tokenBundle = await _authService.SwitchSite(userId, request.SiteId);
-            return Ok(tokenBundle);
+            return HandleTokenResponse(tokenBundle);
         }
         catch (NotFoundException ex)
         {

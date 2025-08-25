@@ -11,7 +11,6 @@ using PlatformApi.Common.Startup;
 using PlatformApi.Common.Tenant;
 using PlatformApi.Data;
 using PlatformApi.Services;
-using AuthStartupExtensions = PlatformApi.AuthStartupExtensions;
 
 Console.WriteLine("🚀 PlatformApi Starting Up");
 
@@ -85,9 +84,6 @@ builder.Services.AddMemoryCache();
 //builder.Services.AddSingleton<ICacheService, DistributedCacheService>();
 builder.Services.AddSingleton<ICacheService, MemoryCacheService>();
 
-
-// Removed Razor Pages - using MVC Controllers instead
-
 builder.Services.AddScoped<IUnitOfWork<PlatformDbContext>, UnitOfWork<PlatformDbContext>>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITenantService, TenantService>();
@@ -110,11 +106,11 @@ builder.Services.AddScoped<PermissionHelper>();
 
 
 // Add Google Authentication Separately
-var logger = LoggerFactory.Create(logging =>
-{
-    logging.AddConsole(); // Add console logging
-}).CreateLogger<StartupBase>();
-builder.Services.AddGoogleAuthentication(builder.Configuration, logger);
+// var logger = LoggerFactory.Create(logging =>
+// {
+//     logging.AddConsole(); // Add console logging
+// }).CreateLogger<StartupBase>();
+// builder.Services.AddGoogleAuthentication(builder.Configuration, logger);
 
 builder.Services
     .AddSingleton<IAuthorizationMiddlewareResultHandler, AuthResponseHandler>();
@@ -137,9 +133,6 @@ app.MapHealthChecks("/health");
 app.UseStaticFiles(); // Enable serving static files (CSS, etc.)
 
 app.ConfigureCors();  // common services
-
-// Add local tenant header middleware for development
-app.UseMiddleware<PlatformApi.Middleware.LocalTenantHeaderMiddleware>();
 
 //if using auth
 app.UseAuthentication();

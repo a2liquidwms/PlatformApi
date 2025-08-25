@@ -463,15 +463,15 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid tenantId, bool forLogin = false)
     {
-        // Check if user is system admin - use appropriate method based on context
-        bool isSystemAdmin = forLogin 
-            ? await IsSystemAdminByRoles(userId)
-            : _permissionHelper.HasPermission(RolePermissionConstants.SysAdminManageTenants);
+        // Check if user has access to all sites in this tenant (system admin or tenant-level all-sites access)
+        bool hasAllSitesAccess = forLogin 
+            ? await IsTenantAccessAllSites(userId, tenantId)
+            : _permissionHelper.HasPermission(RolePermissionConstants.TenantAccessAllSites);
 
-        if (isSystemAdmin)
+        if (hasAllSitesAccess)
         {
             var logContext = forLogin ? "login" : "normal";
-            _logger.LogDebug("System admin access ({Context}) - returning all sites for tenant {TenantId}, user {UserId}", logContext, tenantId, userId);
+            _logger.LogDebug("All-sites access ({Context}) - returning all sites for tenant {TenantId}, user {UserId}", logContext, tenantId, userId);
             var allSites = await _context.Sites
                 .Where(s => s.IsActive && s.TenantId == tenantId)
                 .Select(s => new SiteDto 
@@ -556,20 +556,22 @@ public class UserService : IUserService
             .CountAsync();
     }
 
-    public async Task<int> GetUserSiteCount(Guid userId)
+    public async Task<int> GetUserSiteCount(Guid userId, Guid tenantId)
     {
-        // Always use forLogin=true behavior for system admin check
-        bool isSystemAdmin = await IsSystemAdminByRoles(userId);
+        // Check if user has access to all sites in this tenant (system admin or tenant-level all-sites access)
+        bool hasAllSitesAccess = await IsTenantAccessAllSites(userId, tenantId);
 
-        if (isSystemAdmin)
+        if (hasAllSitesAccess)
         {
-            // System admin has access to all sites across all tenants
-            return await _context.Sites.CountAsync();
+            // User has access to all sites in the specified tenant
+            return await _context.Sites
+                .Where(s => s.TenantId == tenantId)
+                .CountAsync();
         }
 
-        // Regular user - count sites they have explicit access to across all tenants
+        // Regular user - count sites they have explicit access to in the specified tenant
         return await _context.UserSites
-            .Where(us => us.UserId == userId)
+            .Where(us => us.UserId == userId && us.Site!.TenantId == tenantId)
             .Select(us => us.SiteId)
             .Distinct()
             .CountAsync();
@@ -792,6 +794,29 @@ public class UserService : IUserService
 
         _logger.LogDebug("Direct role check for system admin permission: {HasPermission} for user {UserId}", hasSystemAdminPermission, userId);
         return hasSystemAdminPermission;
+    }
+    
+    private async Task<bool> IsTenantAccessAllSites(Guid userId, Guid tenantId)
+    {
+        // Check for system admin permission (global access)
+        bool isSystemAdmin = await IsSystemAdminByRoles(userId);
+        if (isSystemAdmin)
+        {
+            _logger.LogDebug("User {UserId} has system admin permission for all sites", userId);
+            return true;
+        }
+
+        // Check for tenant-specific all-sites permission
+        var hasTenantAllSitesPermission = await _context.UserRoles
+            .Where(ur => ur.UserId == userId && ur.TenantId == tenantId)
+            .Include(ur => ur.Role)
+            .ThenInclude(r => r!.RolePermissions!)
+            .ThenInclude(rp => rp.Permission)
+            .AnyAsync(ur => ur.Role!.RolePermissions!.Any(rp => 
+                rp.Permission!.Code == RolePermissionConstants.TenantAccessAllSites));
+
+        _logger.LogDebug("User {UserId} tenant {TenantId} all-sites permission: {HasPermission}", userId, tenantId, hasTenantAllSitesPermission);
+        return hasTenantAllSitesPermission;
     }
 
     public async Task RemoveUserFromTenant(Guid userId, Guid tenantId)

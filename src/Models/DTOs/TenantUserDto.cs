@@ -48,9 +48,6 @@ public class RemoveUserFromTenantRoleDto
     public required string Email { get; set; }
     
     [Required]
-    public required Guid TenantId { get; set; }
-    
-    [Required]
     public required Guid RoleId { get; set; }
 }
 

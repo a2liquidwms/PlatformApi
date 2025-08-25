@@ -25,6 +25,6 @@ public class RefreshToken : BaseObject
 
 public class RefreshRequest
 {
-    public required Guid UserId { get; set; }
-    public required string RefreshToken { get; set; }
+    public Guid? UserId { get; set; } // Optional - will be derived from refresh token in cookie
+    public string? RefreshToken { get; set; } // Optional - will come from cookie
 }

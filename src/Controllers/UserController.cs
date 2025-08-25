@@ -154,18 +154,21 @@ public class UserController : ControllerBase
     }
 
     // Add user to site role
+    [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
     [HttpPost("role/site/add")]
     public async Task<ActionResult> AddUserToRoleSite([FromBody] AddUserToSiteRoleDto dto)
     {
         try
         {
+            var tenantId = _tenantHelper.GetTenantId();
             // Map to the existing DTO format for service call
             var addUserToRoleDto = new AddUserToRoleDto
             {
                 Email = dto.Email,
                 SiteId = dto.SiteId,
                 RoleId = dto.RoleId,
+                TenantId = tenantId,
                 Scope = RoleScope.Site
             };
             
@@ -186,19 +189,20 @@ public class UserController : ControllerBase
             return StatusCode(500, "Internal server error");
         }
     }
-
-    // Add user to tenant role
+    
+    [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.TenantManageUsers)]
     [HttpPost("role/tenant/add")]
     public async Task<ActionResult> AddUserToRoleTenant([FromBody] AddUserToTenantRoleDto dto)
     {
         try
         {
+            var tenantId = _tenantHelper.GetTenantId();
             // Map to the existing DTO format for service call
             var addUserToRoleDto = new AddUserToRoleDto
             {
                 Email = dto.Email,
-                TenantId = dto.TenantId,
+                TenantId = tenantId,
                 RoleId = dto.RoleId,
                 Scope = RoleScope.Tenant
             };
@@ -220,8 +224,7 @@ public class UserController : ControllerBase
             return StatusCode(500, "Internal server error");
         }
     }
-
-    // Add user to internal role
+    
     [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
     [HttpPost("role/internal/add")]
     public async Task<ActionResult> AddUserToRoleInternal([FromBody] AddUserToInternalRoleDto dto)
@@ -255,17 +258,19 @@ public class UserController : ControllerBase
     }
 
     // Remove user from tenant role
+    [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.TenantManageUsers)]
     [HttpPost("role/tenant/remove")]
     public async Task<ActionResult> RemoveUserFromTenantRole([FromBody] RemoveUserFromTenantRoleDto dto)
     {
         try
         {
+            var tenantId = _tenantHelper.GetTenantId();
             // Map to the existing DTO format for service call
             var removeUserFromRoleDto = new RemoveUserFromRoleDto
             {
                 Email = dto.Email,
-                TenantId = dto.TenantId,
+                TenantId = tenantId,
                 SiteId = null,
                 RoleId = dto.RoleId,
                 Scope = RoleScope.Tenant
@@ -290,17 +295,19 @@ public class UserController : ControllerBase
     }
 
     // Remove user from site role
+    [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
     [HttpPost("role/site/remove")]
     public async Task<ActionResult> RemoveUserFromSiteRole([FromBody] RemoveUserFromSiteRoleDto dto)
     {
         try
         {
+            var tenantId = _tenantHelper.GetTenantId();
             // Map to the existing DTO format for service call
             var removeUserFromRoleDto = new RemoveUserFromRoleDto
             {
                 Email = dto.Email,
-                TenantId = null,
+                TenantId = tenantId,
                 SiteId = dto.SiteId,
                 RoleId = dto.RoleId,
                 Scope = RoleScope.Site

@@ -32,7 +32,7 @@ public interface IUserService
     
     // User membership counts
     Task<int> GetUserTenantCount(Guid userId);
-    Task<int> GetUserSiteCount(Guid userId);
+    Task<int> GetUserSiteCount(Guid userId, Guid tenantId);
     
     // User membership validation
     Task<bool> HasTenantAccess(Guid userId, Guid tenantId, bool forLogin = false);

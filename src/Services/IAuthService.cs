@@ -9,16 +9,17 @@ namespace PlatformApi.Services;
 public interface IAuthService
 {
     Task<IdentityResult> Register(AuthUser user, string password, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null);
-    Task<AuthTokenBundle> Login(string email, string password, Guid? tenantId = null, Guid? siteId = null);
+    Task<AuthTokenBundleWithRefresh> Login(string email, string password, Guid? tenantId = null, Guid? siteId = null);
+    Task<bool> Logout(Guid userId);
 
-    //Task<AuthTokenBundle> ExternalLoginCallback(Guid? tenantId, Guid? siteId = null);
+    //Task<AuthTokenBundleWithRefresh> ExternalLoginCallback(Guid? tenantId, Guid? siteId = null);
     //Task<bool> LinkProvider(ExternalLoginRequest request, ClaimsPrincipal user);
     //Task<bool> UnlinkProvider(UnlinkProviderRequest request, ClaimsPrincipal user);
-    Task<AuthTokenBundle> RefreshToken(Guid userId,string refreshToken);
+    Task<AuthTokenBundleWithRefresh> RefreshToken(string refreshToken);
     
     // Tenant/Site switching methods
-    Task<AuthTokenBundle> SwitchTenant(Guid userId, Guid tenantId);
-    Task<AuthTokenBundle> SwitchSite(Guid userId, Guid siteId);
+    Task<AuthTokenBundleWithRefresh> SwitchTenant(Guid userId, Guid tenantId);
+    Task<AuthTokenBundleWithRefresh> SwitchSite(Guid userId, Guid siteId);
     
     // Availability query methods
     Task<IEnumerable<TenantDto>> GetAvailableTenants(Guid userId);
