@@ -463,10 +463,8 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<SiteDto>> GetUserSites(Guid userId, Guid tenantId, bool forLogin = false)
     {
-        // Check if user has access to all sites in this tenant (system admin or tenant-level all-sites access)
-        bool hasAllSitesAccess = forLogin 
-            ? await IsTenantAccessAllSites(userId, tenantId)
-            : _permissionHelper.HasPermission(RolePermissionConstants.TenantAccessAllSites);
+        // Check if user has access to all sites in this tenant
+        bool hasAllSitesAccess = await IsTenantAccessAllSites(userId, tenantId);
 
         if (hasAllSitesAccess)
         {
