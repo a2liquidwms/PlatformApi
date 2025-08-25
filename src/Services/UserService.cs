@@ -42,16 +42,18 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsers(Guid tenantId)
     {
-        var userTenants = await _context.UserTenants
-            .Where(ut => ut.TenantId == tenantId)
-            .Include(ut => ut.User)
-            .Select(ut => ut.User!)
+        // Get all users with tenant-scoped roles for this tenant
+        var usersWithRoles = await _context.UserRoles
+            .Where(ur => ur.TenantId == tenantId && ur.Scope == RoleScope.Tenant)
+            .Include(ur => ur.User)
+            .GroupBy(ur => ur.User)
             .ToListAsync();
 
         var result = new List<TenantUserWithRolesDto>();
         
-        foreach (var user in userTenants)
+        foreach (var userGroup in usersWithRoles)
         {
+            var user = userGroup.Key!;
             var roles = await GetUserRoles(user.Id, RoleScope.Tenant, tenantId);
             var roleNoPerm = _mapper.Map<List<RoleNoPermissionDto>>(roles);
             
@@ -68,16 +70,18 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<SiteUserWithRolesDto>> GetSiteUsers(Guid siteId)
     {
-        var userSites = await _context.UserSites
-            .Where(us => us.SiteId == siteId)
-            .Include(us => us.User)
-            .Select(us => us.User!)
+        // Get all users with site-scoped roles for this site
+        var usersWithRoles = await _context.UserRoles
+            .Where(ur => ur.SiteId == siteId && ur.Scope == RoleScope.Site)
+            .Include(ur => ur.User)
+            .GroupBy(ur => ur.User)
             .ToListAsync();
 
         var result = new List<SiteUserWithRolesDto>();
         
-        foreach (var user in userSites)
+        foreach (var userGroup in usersWithRoles)
         {
+            var user = userGroup.Key!;
             var roles = await GetUserRoles(user.Id, RoleScope.Site, siteId: siteId);
             var roleNoPerm = _mapper.Map<List<RoleNoPermissionDto>>(roles);
             
@@ -121,44 +125,26 @@ public class UserService : IUserService
         var user = await GetUserByEmail(dto.Email);
         if (user == null) return false;
 
-        // Validate role exists and has correct scope BEFORE making any changes
-        if (!string.IsNullOrEmpty(dto.RoleId))
+        // Add role if specified, otherwise add default tenant role
+        string roleId = dto.RoleId;
+        if (string.IsNullOrEmpty(roleId))
         {
-            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == Guid.Parse(dto.RoleId));
-            if (role == null) throw new NotFoundException($"Role with ID {dto.RoleId} does not exist.");
-            if (role.Scope != RoleScope.Tenant) throw new InvalidDataException($"Role {role.Name} is not a Tenant scope role.");
+            // Get default tenant role
+            var defaultRole = await _context.Roles
+                .FirstOrDefaultAsync(r => r.Scope == RoleScope.Tenant && r.IsSystemRole);
+            if (defaultRole == null) throw new NotFoundException("No default tenant role found");
+            roleId = defaultRole.Id.ToString();
         }
 
-        // Check if user is already in tenant
-        var existingUserTenant = await _context.UserTenants
-            .FirstOrDefaultAsync(ut => ut.UserId == user.Id && ut.TenantId == dto.TenantId);
-
-        if (existingUserTenant == null)
+        var roleDto = new AddUserToRoleDto
         {
-            // Add user to tenant
-            var userTenant = new UserTenant
-            {
-                UserId = user.Id,
-                TenantId = dto.TenantId
-            };
-            
-            await _context.UserTenants.AddAsync(userTenant);
-        }
-
-        // Add role if specified
-        if (!string.IsNullOrEmpty(dto.RoleId))
-        {
-            var roleDto = new AddUserToRoleDto
-            {
-                Email = dto.Email,
-                TenantId = dto.TenantId,
-                RoleId = dto.RoleId,
-                Scope = RoleScope.Tenant
-            };
-            
-            await AddUserToRole(roleDto);
-        }
-
+            Email = dto.Email,
+            TenantId = dto.TenantId,
+            RoleId = roleId,
+            Scope = RoleScope.Tenant
+        };
+        
+        await AddUserToRole(roleDto);
         await _uow.CompleteAsync();
         return true;
     }
@@ -173,61 +159,31 @@ public class UserService : IUserService
             .FirstOrDefaultAsync(s => s.Id == dto.SiteId);
         if (site == null) return false;
 
-        // Validate role exists and has correct scope BEFORE making any changes
+        // Add role if specified, otherwise add default site role
+        string roleId;
         if (dto.RoleId.HasValue)
         {
-            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == dto.RoleId.Value);
-            if (role == null) throw new NotFoundException($"Role with ID {dto.RoleId.Value} does not exist.");
-            if (role.Scope != RoleScope.Site) throw new InvalidDataException($"Role {role.Name} is not a Site scope role.");
+            roleId = dto.RoleId.Value.ToString();
         }
-
-        // Ensure user is in the tenant first
-        var userTenant = await _context.UserTenants
-            .FirstOrDefaultAsync(ut => ut.UserId == user.Id && ut.TenantId == site.TenantId);
-
-        if (userTenant == null)
+        else
         {
-            // Add user to tenant first
-            userTenant = new UserTenant
-            {
-                UserId = user.Id,
-                TenantId = site.TenantId
-            };
-            await _context.UserTenants.AddAsync(userTenant);
+            // Get default site role
+            var defaultRole = await _context.Roles
+                .FirstOrDefaultAsync(r => r.Scope == RoleScope.Site && r.IsSystemRole);
+            if (defaultRole == null) throw new NotFoundException("No default site role found");
+            roleId = defaultRole.Id.ToString();
         }
 
-        // Check if user is already in site
-        var existingUserSite = await _context.UserSites
-            .FirstOrDefaultAsync(us => us.UserId == user.Id && us.SiteId == dto.SiteId);
-
-        if (existingUserSite == null)
+        var roleDto = new AddUserToRoleDto
         {
-            // Add user to site
-            var userSite = new UserSite
-            {
-                UserId = user.Id,
-                SiteId = dto.SiteId,
-                TenantId = site.TenantId
-            };
-            
-            await _context.UserSites.AddAsync(userSite);
-        }
-
-        // Add role if specified
-        if (dto.RoleId.HasValue)
-        {
-            var roleDto = new AddUserToRoleDto
-            {
-                Email = dto.Email,
-                TenantId = site.TenantId,
-                SiteId = dto.SiteId,
-                RoleId = dto.RoleId.Value.ToString(),
-                Scope = RoleScope.Site
-            };
-            
-            await AddUserToRole(roleDto);
-        }
-
+            Email = dto.Email,
+            TenantId = site.TenantId,
+            SiteId = dto.SiteId,
+            RoleId = roleId,
+            Scope = RoleScope.Site
+        };
+        
+        await AddUserToRole(roleDto);
         await _uow.CompleteAsync();
         return true;
     }
@@ -242,8 +198,6 @@ public class UserService : IUserService
         if (role == null) throw new NotFoundException("Role not found");
         if (role.Scope != dto.Scope) throw new InvalidDataException("Role scope mismatch");
 
-        // Ensure user has proper tenant/site associations based on role scope
-        await EnsureUserAssociations(dto.Email, dto.Scope, dto.TenantId, dto.SiteId);
 
         // Check if assignment already exists
         var existingAssignment = await _context.UserRoles
@@ -282,8 +236,6 @@ public class UserService : IUserService
         // Ensure the DTO scope matches expected scope
         if (dto.Scope != expectedScope) throw new InvalidDataException($"DTO scope must be {expectedScope}");
 
-        // Ensure user has proper tenant/site associations based on role scope
-        await EnsureUserAssociations(dto.Email, expectedScope, dto.TenantId, dto.SiteId);
 
         // Check if assignment already exists
         var existingAssignment = await _context.UserRoles
@@ -417,16 +369,17 @@ public class UserService : IUserService
         // For login, skip caching and return fresh data
         if (forLogin)
         {
-            var tenants = await _context.UserTenants
-                .Where(ut => ut.UserId == userId)
-                .Include(ut => ut.Tenant)
-                .Select(ut => new TenantDto 
+            var tenants = await _context.UserRoles
+                .Where(ur => ur.UserId == userId && ur.TenantId != null && ur.Scope == RoleScope.Tenant)
+                .Include(ur => ur.Tenant)
+                .Select(ur => new TenantDto 
                 { 
-                    Id = ut.Tenant!.Id, 
-                    Name = ut.Tenant!.Name, 
-                    Code = ut.Tenant!.Code, 
-                    SubDomain = ut.Tenant!.SubDomain 
+                    Id = ur.Tenant!.Id, 
+                    Name = ur.Tenant!.Name, 
+                    Code = ur.Tenant!.Code, 
+                    SubDomain = ur.Tenant!.SubDomain 
                 })
+                .Distinct()
                 .ToListAsync();
             return tenants;
         }
@@ -441,17 +394,18 @@ public class UserService : IUserService
 
         _logger.LogDebug("Cache miss for user tenants, querying database: {UserId}", userId);
         
-        // Get all tenants where user is explicitly assigned via UserTenant table
-        var userTenants = await _context.UserTenants
-            .Where(ut => ut.UserId == userId)
-            .Include(ut => ut.Tenant)
-            .Select(ut => new TenantDto 
+        // Get all tenants where user has tenant-scoped roles
+        var userTenants = await _context.UserRoles
+            .Where(ur => ur.UserId == userId && ur.TenantId != null && ur.Scope == RoleScope.Tenant)
+            .Include(ur => ur.Tenant)
+            .Select(ur => new TenantDto 
             { 
-                Id = ut.Tenant!.Id, 
-                Name = ut.Tenant!.Name, 
-                Code = ut.Tenant!.Code, 
-                SubDomain = ut.Tenant!.SubDomain 
+                Id = ur.Tenant!.Id, 
+                Name = ur.Tenant!.Name, 
+                Code = ur.Tenant!.Code, 
+                SubDomain = ur.Tenant!.SubDomain 
             })
+            .Distinct()
             .ToListAsync();
 
         // Cache the results for regular users
@@ -488,19 +442,22 @@ public class UserService : IUserService
         if (forLogin)
         {
             _logger.LogDebug("Regular user login - querying assigned sites for tenant {TenantId}, user {UserId}", tenantId, userId);
-            var loginSites = await _context.UserSites
-                .Where(us => us.UserId == userId && us.TenantId == tenantId && us.Site!.IsActive)
-                .Include(us => us.Site)
+            var loginSites = await _context.UserRoles
+                .Where(ur => ur.UserId == userId && ur.TenantId == tenantId && ur.SiteId != null && ur.Scope == RoleScope.Site)
+                .Include(ur => ur.Site)
+                .Where(ur => ur.Site!.IsActive)
+                .Select(ur => new SiteDto 
+                { 
+                    Id = ur.Site!.Id, 
+                    Code = ur.Site!.Code,
+                    Name = ur.Site!.Name, 
+                    TenantId = ur.Site!.TenantId,
+                    IsActive = ur.Site!.IsActive 
+                })
+                .Distinct()
                 .ToListAsync();
             
-            return loginSites.Where(us => us.Site != null).Select(us => new SiteDto 
-            { 
-                Id = us.Site!.Id, 
-                Code = us.Site!.Code,
-                Name = us.Site!.Name, 
-                TenantId = us.Site!.TenantId,
-                IsActive = us.Site!.IsActive 
-            });
+            return loginSites;
         }
 
         // Regular users get cached results for performance (post-authentication)
@@ -513,20 +470,21 @@ public class UserService : IUserService
 
         _logger.LogDebug("Cache miss for user sites, querying database: {UserId}, tenant {TenantId}", userId, tenantId);
         
-        // Get all sites where user is explicitly assigned within the specified tenant (site must be active)
-        var userSites = await _context.UserSites
-            .Where(us => us.UserId == userId && us.TenantId == tenantId && us.Site!.IsActive)
-            .Include(us => us.Site)
+        // Get all sites where user has site-scoped roles within the specified tenant (site must be active)
+        var siteDtos = await _context.UserRoles
+            .Where(ur => ur.UserId == userId && ur.TenantId == tenantId && ur.SiteId != null && ur.Scope == RoleScope.Site)
+            .Include(ur => ur.Site)
+            .Where(ur => ur.Site!.IsActive)
+            .Select(ur => new SiteDto 
+            { 
+                Id = ur.Site!.Id, 
+                Code = ur.Site!.Code,
+                Name = ur.Site!.Name, 
+                TenantId = ur.Site!.TenantId,
+                IsActive = ur.Site!.IsActive 
+            })
+            .Distinct()
             .ToListAsync();
-        
-        var siteDtos = userSites.Where(us => us.Site != null).Select(us => new SiteDto 
-        { 
-            Id = us.Site!.Id, 
-            Code = us.Site!.Code,
-            Name = us.Site!.Name, 
-            TenantId = us.Site!.TenantId,
-            IsActive = us.Site!.IsActive 
-        }).ToList();
 
         // Cache the results for regular users
         await _cache.SetCachedUserSitesAsync(userId, tenantId, siteDtos);
@@ -546,10 +504,10 @@ public class UserService : IUserService
             return await _context.Tenants.CountAsync();
         }
 
-        // Regular user - count tenants they have explicit access to
-        return await _context.UserTenants
-            .Where(ut => ut.UserId == userId)
-            .Select(ut => ut.TenantId)
+        // Regular user - count tenants they have roles in
+        return await _context.UserRoles
+            .Where(ur => ur.UserId == userId && ur.TenantId != null && ur.Scope == RoleScope.Tenant)
+            .Select(ur => ur.TenantId)
             .Distinct()
             .CountAsync();
     }
@@ -567,10 +525,10 @@ public class UserService : IUserService
                 .CountAsync();
         }
 
-        // Regular user - count sites they have explicit access to in the specified tenant
-        return await _context.UserSites
-            .Where(us => us.UserId == userId && us.Site!.TenantId == tenantId)
-            .Select(us => us.SiteId)
+        // Regular user - count sites they have roles in within the specified tenant
+        return await _context.UserRoles
+            .Where(ur => ur.UserId == userId && ur.TenantId == tenantId && ur.SiteId != null && ur.Scope == RoleScope.Site)
+            .Select(ur => ur.SiteId)
             .Distinct()
             .CountAsync();
     }
@@ -718,64 +676,6 @@ public class UserService : IUserService
             .ToListAsync();
     }
 
-    private async Task EnsureUserAssociations(string email, RoleScope scope, Guid? tenantId, Guid? siteId)
-    {
-        var user = await GetUserByEmail(email);
-        if (user == null) return;
-
-        switch (scope)
-        {
-            case RoleScope.Tenant:
-                if (tenantId.HasValue)
-                    await EnsureUserTenantAssociation(user.Id, tenantId.Value);
-                break;
-
-            case RoleScope.Site:
-                if (tenantId.HasValue && siteId.HasValue)
-                {
-                    await EnsureUserTenantAssociation(user.Id, tenantId.Value);
-                    await EnsureUserSiteAssociation(user.Id, siteId.Value, tenantId.Value);
-                }
-                break;
-
-            default:
-                // Internal and Default roles don't require tenant/site associations
-                break;
-        }
-    }
-
-    private async Task EnsureUserTenantAssociation(Guid userId, Guid tenantId)
-    {
-        var existingUserTenant = await _context.UserTenants
-            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TenantId == tenantId);
-
-        if (existingUserTenant == null)
-        {
-            var userTenant = new UserTenant
-            {
-                UserId = userId,
-                TenantId = tenantId
-            };
-            await _context.UserTenants.AddAsync(userTenant);
-        }
-    }
-
-    private async Task EnsureUserSiteAssociation(Guid userId, Guid siteId, Guid tenantId)
-    {
-        var existingUserSite = await _context.UserSites
-            .FirstOrDefaultAsync(us => us.UserId == userId && us.SiteId == siteId);
-
-        if (existingUserSite == null)
-        {
-            var userSite = new UserSite
-            {
-                UserId = userId,
-                SiteId = siteId,
-                TenantId = tenantId
-            };
-            await _context.UserSites.AddAsync(userSite);
-        }
-    }
 
 
     private async Task<bool> IsSystemAdminByRoles(Guid userId)
@@ -842,21 +742,6 @@ public class UserService : IUserService
         
         _context.UserRoles.RemoveRange(siteRoles);
 
-        // Remove from UserTenants table
-        var userTenant = await _context.UserTenants
-            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TenantId == tenantId);
-        
-        if (userTenant != null)
-        {
-            _context.UserTenants.Remove(userTenant);
-        }
-
-        // Remove from UserSites table for all sites in this tenant
-        var userSites = await _context.UserSites
-            .Where(us => us.UserId == userId && us.TenantId == tenantId)
-            .ToListAsync();
-        
-        _context.UserSites.RemoveRange(userSites);
 
         // Revoke all refresh tokens for this user in this tenant context
         var refreshTokens = await _context.RefreshTokens
@@ -900,14 +785,6 @@ public class UserService : IUserService
         
         _context.UserRoles.RemoveRange(siteRoles);
 
-        // Remove from UserSites table for this specific site
-        var userSite = await _context.UserSites
-            .FirstOrDefaultAsync(us => us.UserId == userId && us.SiteId == siteId);
-        
-        if (userSite != null)
-        {
-            _context.UserSites.Remove(userSite);
-        }
 
         // Revoke all refresh tokens for this user in this site context
         var refreshTokens = await _context.RefreshTokens

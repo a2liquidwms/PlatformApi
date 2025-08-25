@@ -24,7 +24,6 @@ public class Tenant : BaseObject
     
     public TenantConfig? TenantConfig { get; set; }
     
-    public virtual ICollection<UserTenant>? UserTenants { get; set; }
     
     public virtual ICollection<Site>? Sites { get; set; }
 }

@@ -11,10 +11,8 @@ public class PlatformDbContext : IdentityDbContext<AuthUser, IdentityRole<Guid>,
     public DbSet<Tenant> Tenants { get; set; }
     
     public DbSet<TenantConfig> TenantConfigs { get; set; }
-    public DbSet<UserTenant> UserTenants { get; set; }
     
     public DbSet<Site> Sites { get; set; }
-    public DbSet<UserSite> UserSites { get; set; }
     public new DbSet<UserRoles> UserRoles { get; set; }
     
     public DbSet<Permission> Permissions { get; set; }
@@ -44,14 +42,6 @@ public class PlatformDbContext : IdentityDbContext<AuthUser, IdentityRole<Guid>,
         builder.Entity<IdentityRoleClaim<Guid>>().ToTable("asp_identity_role_claims"); // Identity role claims (unused)
         
         
-        // Define Tenant/User relationship
-        builder.Entity<UserTenant>()
-            .HasKey(ut => new { ut.UserId, ut.TenantId });
-
-        builder.Entity<UserTenant>()
-            .HasOne(ut => ut.User)
-            .WithMany(u => u.UserTenants)
-            .HasForeignKey(ut => ut.UserId);
         
         // Define Site relationships
         builder.Entity<Site>()
@@ -59,19 +49,6 @@ public class PlatformDbContext : IdentityDbContext<AuthUser, IdentityRole<Guid>,
             .WithMany(t => t.Sites)
             .HasForeignKey(s => s.TenantId);
         
-        // Define UserSite relationships
-        builder.Entity<UserSite>()
-            .HasKey(us => new { us.UserId, us.SiteId });
-
-        builder.Entity<UserSite>()
-            .HasOne(us => us.User)
-            .WithMany(u => u.UserSites)
-            .HasForeignKey(us => us.UserId);
-
-        builder.Entity<UserSite>()
-            .HasOne(us => us.Site)
-            .WithMany(s => s.UserSites)
-            .HasForeignKey(us => us.SiteId);
 
         
         // Define UserRoleAssignment relationships

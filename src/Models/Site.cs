@@ -28,5 +28,4 @@ public class Site : BaseObject
     
     public virtual Tenant? Tenant { get; set; }
     
-    public virtual ICollection<UserSite>? UserSites { get; set; }
 }
