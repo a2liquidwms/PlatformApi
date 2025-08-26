@@ -120,73 +120,7 @@ public class UserService : IUserService
         return usersWithRoles;
     }
 
-    public async Task<bool> AddUserToTenant(AddUserToTenantDto dto)
-    {
-        var user = await GetUserByEmail(dto.Email);
-        if (user == null) return false;
 
-        // Add role if specified, otherwise add default tenant role
-        string roleId = dto.RoleId;
-        if (string.IsNullOrEmpty(roleId))
-        {
-            // Get default tenant role
-            var defaultRole = await _context.Roles
-                .FirstOrDefaultAsync(r => r.Scope == RoleScope.Tenant && r.IsSystemRole);
-            if (defaultRole == null) throw new NotFoundException("No default tenant role found");
-            roleId = defaultRole.Id.ToString();
-        }
-
-        var roleDto = new AddUserToRoleDto
-        {
-            Email = dto.Email,
-            TenantId = dto.TenantId,
-            RoleId = roleId,
-            Scope = RoleScope.Tenant
-        };
-        
-        await AddUserToRole(roleDto);
-        await _uow.CompleteAsync();
-        return true;
-    }
-
-    public async Task<bool> AddUserToSite(AddUserToSiteDto dto)
-    {
-        var user = await GetUserByEmail(dto.Email);
-        if (user == null) return false;
-
-        // Get site to ensure it exists and get tenant info
-        var site = await _context.Sites
-            .FirstOrDefaultAsync(s => s.Id == dto.SiteId);
-        if (site == null) return false;
-
-        // Add role if specified, otherwise add default site role
-        string roleId;
-        if (dto.RoleId.HasValue)
-        {
-            roleId = dto.RoleId.Value.ToString();
-        }
-        else
-        {
-            // Get default site role
-            var defaultRole = await _context.Roles
-                .FirstOrDefaultAsync(r => r.Scope == RoleScope.Site && r.IsSystemRole);
-            if (defaultRole == null) throw new NotFoundException("No default site role found");
-            roleId = defaultRole.Id.ToString();
-        }
-
-        var roleDto = new AddUserToRoleDto
-        {
-            Email = dto.Email,
-            TenantId = site.TenantId,
-            SiteId = dto.SiteId,
-            RoleId = roleId,
-            Scope = RoleScope.Site
-        };
-        
-        await AddUserToRole(roleDto);
-        await _uow.CompleteAsync();
-        return true;
-    }
 
     public async Task<bool> AddUserToRole(AddUserToRoleDto dto)
     {
@@ -297,6 +231,19 @@ public class UserService : IUserService
     public async Task<AuthUser?> GetUserByEmail(string email)
     {
         return await _userManager.FindByEmailAsync(email);
+    }
+
+    public async Task<UserLookupDto?> GetUserByUserName(string userName)
+    {
+        var user = await _userManager.FindByNameAsync(userName);
+        if (user == null)
+            return null;
+
+        return new UserLookupDto
+        {
+            UserName = user.UserName!,
+            Email = user.Email!
+        };
     }
 
     public async Task<IEnumerable<Role>> GetUserRoles(Guid userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null)

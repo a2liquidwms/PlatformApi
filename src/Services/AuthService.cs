@@ -872,14 +872,6 @@ public class AuthService : IAuthService
 
     private async Task ProcessInvitationForExistingUser(AuthUser user, UserInvitation invitation)
     {
-        // Add user to tenant
-        var addUserToTenantDto = new AddUserToTenantDto
-        {
-            Email = user.Email!,
-            TenantId = invitation.TenantId
-        };
-        await _userService.AddUserToTenant(addUserToTenantDto);
-
         // Add invited roles if any
         if (!string.IsNullOrEmpty(invitation.InvitedRoles))
         {
@@ -899,6 +891,7 @@ public class AuthService : IAuthService
                 }
             }
         }
+        // If no roles specified, user is created but has no tenant/site access until roles are assigned later
     }
 }
 
