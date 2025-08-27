@@ -3,7 +3,6 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -29,8 +28,8 @@ public class AuthService : IAuthService
     private readonly TenantHelper _tenantHelper;
     private readonly IUserService _userService;
     private readonly ITenantService _tenantService;
+    private readonly IEmailContentService _emailContentService;
     private readonly IEmailService _emailService;
-    private readonly IBrandingService _brandingService;
     private readonly ISnsService _snsService;
     private readonly string _refreshTokenDays;
     private readonly string _accessTokenMinutes;
@@ -38,7 +37,7 @@ public class AuthService : IAuthService
     public AuthService(UserManager<AuthUser> userManager, SignInManager<AuthUser> signInManager,
         IConfiguration configuration, ILogger<AuthService> logger, PlatformDbContext context,
         IUnitOfWork<PlatformDbContext> uow, TenantHelper tenantHelper, 
-        IUserService userService, ITenantService tenantService, IEmailService emailService, IBrandingService brandingService, ISnsService snsService)
+        IUserService userService, ITenantService tenantService, IEmailContentService emailContentService, IEmailService emailService, ISnsService snsService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -49,8 +48,8 @@ public class AuthService : IAuthService
         _tenantHelper = tenantHelper;
         _userService = userService;
         _tenantService = tenantService;
+        _emailContentService = emailContentService;
         _emailService = emailService;
-        _brandingService = brandingService;
         _snsService = snsService;
         _refreshTokenDays = configuration["AUTH_REFRESH_TOKEN_DAYS"] ?? "180";
         _accessTokenMinutes = configuration["AUTH_ACCESS_TOKEN_MINUTES"] ?? "5";
@@ -326,9 +325,7 @@ public class AuthService : IAuthService
             return false;
         }
     }
-
-    // EMAIL METHODS WITH BRANDING SUPPORT
-
+    
     public async Task<bool> SendEmailConfirmationAsync(string email, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null)
     {
         var user = await _userManager.FindByEmailAsync(email);
@@ -345,7 +342,8 @@ public class AuthService : IAuthService
         }
 
         var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-        return await _emailService.SendEmailConfirmationAsync(user.Email!, token, user.Id, user.UserName ?? user.Email!, tenantId, returnUrl);
+        var emailContent = await _emailContentService.PrepareEmailConfirmationAsync(user.Email!, token, user.Id, user.UserName ?? user.Email!, tenantId, returnUrl);
+        return await _emailService.SendEmailAsync(emailContent);
     }
 
     public async Task<bool> ConfirmEmailAsync(Guid userId, string token, string? subdomain = null, Guid? tenantId = null)
@@ -364,7 +362,8 @@ public class AuthService : IAuthService
             _logger.LogInformation("Email confirmed successfully for user: {UserId}", userId);
             
             // Send welcome email after successful confirmation
-            await _emailService.SendWelcomeEmailAsync(user.Email!, user.UserName ?? user.Email!, tenantId);
+            var welcomeEmailContent = await _emailContentService.PrepareWelcomeEmailAsync(user.Email!, user.UserName ?? user.Email!, tenantId);
+            await _emailService.SendEmailAsync(welcomeEmailContent);
             
             return true;
         }
@@ -385,7 +384,8 @@ public class AuthService : IAuthService
         }
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-        return await _emailService.SendPasswordResetAsync(user.Email!, token, user.Id, user.UserName ?? user.Email!, tenantId, returnUrl);
+        var emailContent = await _emailContentService.PreparePasswordResetAsync(user.Email!, token, user.Id, user.UserName ?? user.Email!, tenantId, returnUrl);
+        return await _emailService.SendEmailAsync(emailContent);
     }
 
     public async Task<bool> ResetPasswordAsync(Guid userId, string token, string newPassword, string? subdomain = null, Guid? tenantId = null)
@@ -848,7 +848,8 @@ public class AuthService : IAuthService
         await _uow.CompleteAsync();
 
         // Send welcome email
-        await _emailService.SendWelcomeEmailAsync(newUser.Email!, newUser.UserName ?? newUser.Email!, invitation.TenantId);
+        var welcomeEmailContent = await _emailContentService.PrepareWelcomeEmailAsync(newUser.Email!, newUser.UserName ?? newUser.Email!, invitation.TenantId);
+        await _emailService.SendEmailAsync(welcomeEmailContent);
 
         // Publish user-created message
         var userCreatedMessage = new UserCreatedMessage

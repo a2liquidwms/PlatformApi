@@ -13,20 +13,20 @@ public class TenantService : ITenantService
     private readonly PlatformDbContext _context;
     private readonly IUnitOfWork<PlatformDbContext> _uow;
     private readonly ISnsService _snsService;
-    private readonly IUserService _userService;
+    private readonly ICacheService _cacheService;
 
     public TenantService(
         ILogger<TenantService> logger, 
         PlatformDbContext context, 
         IUnitOfWork<PlatformDbContext> uow, 
         ISnsService snsService,
-        IUserService userService)
+        ICacheService cacheService)
     {
         _logger = logger;
         _context = context;
         _uow = uow;
         _snsService = snsService;
-        _userService = userService;
+        _cacheService = cacheService;
     }
 
     public async Task<IEnumerable<Tenant>> GetAll()
@@ -55,7 +55,7 @@ public class TenantService : ITenantService
         await _snsService.PublishTenantCreatedAsync(tenantCreatedMessage);
         
         // Invalidate all user tenant caches since a new tenant was added
-        _userService.InvalidateAllUserTenantCaches();
+        await _cacheService.InvalidateAllCachedUserTenantsAsync();
         
         return obj;
     }
@@ -80,7 +80,7 @@ public class TenantService : ITenantService
         await _uow.CompleteAsync();
         
         // Invalidate all user tenant caches since tenant was updated
-        _userService.InvalidateAllUserTenantCaches();
+        await _cacheService.InvalidateAllCachedUserTenantsAsync();
         
         return true;
     }
@@ -97,7 +97,7 @@ public class TenantService : ITenantService
         await _uow.CompleteAsync();
         
         // Invalidate all user tenant caches since tenant was deleted
-        _userService.InvalidateAllUserTenantCaches();
+        await _cacheService.InvalidateAllCachedUserTenantsAsync();
         
         return true;
     }

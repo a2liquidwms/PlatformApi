@@ -21,6 +21,7 @@ public class UserService : IUserService
     private readonly IUnitOfWork<PlatformDbContext> _uow;
     private readonly PermissionHelper _permissionHelper;
     private readonly ICacheService _cache;
+    private readonly IEmailContentService _emailContentService;
     private readonly IEmailService _emailService;
 
     public UserService(
@@ -31,6 +32,7 @@ public class UserService : IUserService
         IUnitOfWork<PlatformDbContext> uow,
         PermissionHelper permissionHelper,
         ICacheService cache,
+        IEmailContentService emailContentService,
         IEmailService emailService)
     {
         _context = context;
@@ -40,6 +42,7 @@ public class UserService : IUserService
         _uow = uow;
         _permissionHelper = permissionHelper;
         _cache = cache;
+        _emailContentService = emailContentService;
         _emailService = emailService;
     }
 
@@ -170,11 +173,11 @@ public class UserService : IUserService
         // Invalidate appropriate caches based on scope
         if (expectedScope == RoleScope.Tenant)
         {
-            InvalidateUserTenantCache(user.Id);
+            await _cache.InvalidateCachedUserTenantsAsync(user.Id);
         }
         else if (expectedScope == RoleScope.Site && dto.TenantId.HasValue)
         {
-            InvalidateUserSiteCache(user.Id, dto.TenantId.Value);
+            await _cache.InvalidateCachedUserSitesAsync(user.Id, dto.TenantId.Value);
         }
         
         return true;
@@ -215,11 +218,11 @@ public class UserService : IUserService
         // Invalidate appropriate caches based on scope
         if (expectedScope == RoleScope.Tenant)
         {
-            InvalidateUserTenantCache(user.Id);
+            await _cache.InvalidateCachedUserTenantsAsync(user.Id);
         }
         else if (expectedScope == RoleScope.Site && dto.TenantId.HasValue)
         {
-            InvalidateUserSiteCache(user.Id, dto.TenantId.Value);
+            await _cache.InvalidateCachedUserSitesAsync(user.Id, dto.TenantId.Value);
         }
     }
 
@@ -487,34 +490,6 @@ public class UserService : IUserService
         return siteDtos.Any(s => s.Id == siteId);
     }
 
-    // Cache invalidation methods
-    public void InvalidateUserTenantCache(Guid userId)
-    {
-        _ = Task.Run(async () => await _cache.InvalidateCachedUserTenantsAsync(userId));
-        
-        _logger.LogDebug("Invalidated tenant cache for user {UserId}", userId);
-    }
-
-    public void InvalidateAllUserTenantCaches()
-    {
-        _ = Task.Run(async () => await _cache.InvalidateAllCachedUserTenantsAsync());
-        
-        _logger.LogDebug("Invalidated all user tenant caches by incrementing generation");
-    }
-
-    public void InvalidateUserSiteCache(Guid userId, Guid tenantId)
-    {
-        _ = Task.Run(async () => await _cache.InvalidateCachedUserSitesAsync(userId, tenantId));
-        
-        _logger.LogDebug("Invalidated site cache for user {UserId}, tenant {TenantId}", userId, tenantId);
-    }
-
-    public void InvalidateAllUserSiteCaches()
-    {
-        _ = Task.Run(async () => await _cache.InvalidateAllCachedUserSitesAsync());
-        
-        _logger.LogDebug("Invalidated all user site caches by incrementing generation");
-    }
 
     // User invitation methods
     public async Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, RoleScope expectedScope, string invitedByUserId)
@@ -604,13 +579,15 @@ public class UserService : IUserService
         // Send invitation email
         try
         {
-            var emailSent = await _emailService.SendInvitationEmailAsync(
+            var emailContent = await _emailContentService.PrepareInvitationEmailAsync(
                 request.Email, 
                 invitationToken, 
                 request.Email, // Using email as userName for now, will be updated when user registers
                 request.Scope, 
                 request.TenantId, 
                 request.SiteId);
+            
+            var emailSent = await _emailService.SendEmailAsync(emailContent);
             
             if (!emailSent)
             {

@@ -1,6 +1,6 @@
 using PlatformApi.Models.DTOs;
 
-namespace PlatformApi.Common.Services;
+namespace PlatformApi.Services;
 
 public interface ICacheService
 {

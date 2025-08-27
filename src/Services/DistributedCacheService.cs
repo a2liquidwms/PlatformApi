@@ -1,8 +1,8 @@
-using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Distributed;
 using PlatformApi.Models.DTOs;
 
-namespace PlatformApi.Common.Services;
+namespace PlatformApi.Services;
 
 public class DistributedCacheService : ICacheService
 {

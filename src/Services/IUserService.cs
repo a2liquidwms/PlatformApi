@@ -38,7 +38,4 @@ public interface IUserService
     Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId);
     
     
-    // Cache invalidation methods
-    void InvalidateUserTenantCache(Guid userId);
-    void InvalidateAllUserTenantCaches();
 }

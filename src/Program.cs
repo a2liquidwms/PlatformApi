@@ -90,6 +90,7 @@ builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IBrandingService, BrandingService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IEmailContentService, EmailContentService>();
 builder.Services.AddScoped<IEmailService, EmailAwsSesService>();
 // Register SNS service conditionally based on configuration
 var snsEnabled = builder.Configuration.GetValue<bool>("AWS_SNS_ENABLED", true);
