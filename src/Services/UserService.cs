@@ -21,6 +21,7 @@ public class UserService : IUserService
     private readonly IUnitOfWork<PlatformDbContext> _uow;
     private readonly PermissionHelper _permissionHelper;
     private readonly ICacheService _cache;
+    private readonly IEmailService _emailService;
 
     public UserService(
         PlatformDbContext context,
@@ -29,7 +30,8 @@ public class UserService : IUserService
         ILogger<UserService> logger,
         IUnitOfWork<PlatformDbContext> uow,
         PermissionHelper permissionHelper,
-        ICacheService cache)
+        ICacheService cache,
+        IEmailService emailService)
     {
         _context = context;
         _userManager = userManager;
@@ -38,6 +40,7 @@ public class UserService : IUserService
         _uow = uow;
         _permissionHelper = permissionHelper;
         _cache = cache;
+        _emailService = emailService;
     }
 
     public async Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsers(Guid tenantId)
@@ -122,45 +125,16 @@ public class UserService : IUserService
 
 
 
-    public async Task<bool> AddUserToRole(AddUserToRoleDto dto)
-    {
-        var user = await GetUserByEmail(dto.Email);
-        if (user == null) throw new NotFoundException("User not found");
-
-        // Validate role exists and matches scope
-        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == Guid.Parse(dto.RoleId));
-        if (role == null) throw new NotFoundException("Role not found");
-        if (role.Scope != dto.Scope) throw new InvalidDataException("Role scope mismatch");
-
-
-        // Check if assignment already exists
-        var existingAssignment = await _context.UserRoles
-            .FirstOrDefaultAsync(ura => ura.UserId == user.Id && 
-                                       ura.RoleId == Guid.Parse(dto.RoleId) &&
-                                       ura.TenantId == dto.TenantId &&
-                                       ura.SiteId == dto.SiteId &&
-                                       ura.Scope == dto.Scope);
-
-        if (existingAssignment != null) throw new InvalidDataException("User is already assigned to this role");
-
-        var roleAssignment = new UserRoles
-        {
-            UserId = user.Id,
-            RoleId = Guid.Parse(dto.RoleId),
-            TenantId = dto.TenantId,
-            SiteId = dto.SiteId,
-            Scope = dto.Scope
-        };
-
-        await _context.UserRoles.AddAsync(roleAssignment);
-        await _uow.CompleteAsync();
-        return true;
-    }
 
     public async Task<bool> AddUserToRole(AddUserToRoleDto dto, RoleScope expectedScope)
     {
         var user = await GetUserByEmail(dto.Email);
-        if (user == null) throw new NotFoundException("User not found");
+        
+        // If user doesn't exist, create a placeholder user
+        if (user == null)
+        {
+            user = await CreatePlaceholderUserAsync(dto.Email);
+        }
 
         // Validate role exists and matches expected scope
         var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == Guid.Parse(dto.RoleId));
@@ -192,6 +166,17 @@ public class UserService : IUserService
 
         await _context.UserRoles.AddAsync(roleAssignment);
         await _uow.CompleteAsync();
+        
+        // Invalidate appropriate caches based on scope
+        if (expectedScope == RoleScope.Tenant)
+        {
+            InvalidateUserTenantCache(user.Id);
+        }
+        else if (expectedScope == RoleScope.Site && dto.TenantId.HasValue)
+        {
+            InvalidateUserSiteCache(user.Id, dto.TenantId.Value);
+        }
+        
         return true;
     }
 
@@ -226,11 +211,43 @@ public class UserService : IUserService
 
         _context.UserRoles.Remove(assignment);
         await _uow.CompleteAsync();
+        
+        // Invalidate appropriate caches based on scope
+        if (expectedScope == RoleScope.Tenant)
+        {
+            InvalidateUserTenantCache(user.Id);
+        }
+        else if (expectedScope == RoleScope.Site && dto.TenantId.HasValue)
+        {
+            InvalidateUserSiteCache(user.Id, dto.TenantId.Value);
+        }
     }
 
-    public async Task<AuthUser?> GetUserByEmail(string email)
+    private async Task<AuthUser?> GetUserByEmail(string email)
     {
         return await _userManager.FindByEmailAsync(email);
+    }
+
+    private async Task<AuthUser> CreatePlaceholderUserAsync(string email)
+    {
+        var placeholderUser = new AuthUser
+        {
+            Email = email,
+            UserName = email,
+            EmailConfirmed = false,
+            NormalizedEmail = email.ToUpper(),
+            NormalizedUserName = email.ToUpper()
+        };
+
+        var result = await _userManager.CreateAsync(placeholderUser);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidDataException($"Failed to create placeholder user: {errors}");
+        }
+        
+        _logger.LogInformation("Created placeholder user for email {Email}", email);
+        return placeholderUser;
     }
 
     public async Task<UserLookupDto?> GetUserByUserName(string userName)
@@ -246,7 +263,7 @@ public class UserService : IUserService
         };
     }
 
-    public async Task<IEnumerable<Role>> GetUserRoles(Guid userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null)
+    private async Task<IEnumerable<Role>> GetUserRoles(Guid userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null)
     {
         var query = _context.UserRoles
             .Where(ura => ura.UserId == userId && ura.Scope == scope);
@@ -264,31 +281,6 @@ public class UserService : IUserService
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<Permission>?> GetUserPermissions(Guid userId, Guid? tenantId = null, Guid? siteId = null)
-    {
-        // Get all role assignments for user with hierarchical priority
-        var assignments = await _context.UserRoles
-            .Where(ura => ura.UserId == userId)
-            .Include(ura => ura.Role)
-            .ThenInclude(r => r!.RolePermissions)!
-            .ThenInclude(rp => rp.Permission)
-            .ToListAsync();
-
-        // Filter based on context and apply hierarchy (Internal > Tenant > Site)
-        var contextualAssignments = assignments.Where(a => 
-            a.Scope == RoleScope.Internal ||
-            (a.Scope == RoleScope.Tenant && a.TenantId == tenantId) ||
-            (a.Scope == RoleScope.Site && a.SiteId == siteId && a.TenantId == tenantId)
-        ).ToList();
-
-        var allPermissions = contextualAssignments
-            .SelectMany(a => a.Role?.RolePermissions?.Select(rp => rp.Permission) ?? Enumerable.Empty<Permission>())
-            .Where(p => p != null)
-            .Distinct()
-            .ToList();
-
-        return allPermissions!;
-    }
 
     public async Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId, bool forLogin = false)
     {
@@ -525,28 +517,56 @@ public class UserService : IUserService
     }
 
     // User invitation methods
-    public async Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, string invitedByUserId)
+    public async Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, RoleScope expectedScope, string invitedByUserId)
     {
-        // Check if user already exists
-        var existingUser = await GetUserByEmail(request.Email);
-        if (existingUser != null)
+        // Validate request scope matches expected scope
+        if (request.Scope != expectedScope)
         {
-            // Check if user is already in tenant
-            var hasAccess = await HasTenantAccess(existingUser.Id, request.TenantId);
-            if (hasAccess)
-            {
-                return new InvitationResponse
-                {
-                    Success = false,
-                    Message = "User is already a member of this tenant"
-                };
-            }
+            throw new InvalidDataException($"Request scope must be {expectedScope}");
         }
 
-        // Check if there's already a pending invitation
+        // First, create placeholder user and assign role (this validates everything)
+        var addRoleDto = new AddUserToRoleDto
+        {
+            Email = request.Email,
+            TenantId = request.TenantId,
+            SiteId = request.SiteId,
+            RoleId = request.RoleId,
+            Scope = request.Scope
+        };
+
+        try
+        {
+            await AddUserToRole(addRoleDto, expectedScope);
+        }
+        catch (InvalidDataException ex) when (ex.Message.Contains("already assigned"))
+        {
+            return new InvitationResponse
+            {
+                Success = false,
+                Message = "User already has this role assigned"
+            };
+        }
+
+        // Check if user has completed registration (has password)
+        var user = await GetUserByEmail(request.Email);
+        if (user != null && !string.IsNullOrEmpty(user.PasswordHash))
+        {
+            // User already exists and has password - role was just added, no invitation needed
+            return new InvitationResponse
+            {
+                Success = true,
+                Message = "User already exists - role assigned directly",
+                InvitationId = null // No invitation created
+            };
+        }
+
+        // Check if there's already a pending invitation for this scope/context
         var existingInvitation = await _context.UserInvitations
             .FirstOrDefaultAsync(ui => ui.Email == request.Email && 
-                                      ui.TenantId == request.TenantId && 
+                                      ui.TenantId == request.TenantId &&
+                                      ui.SiteId == request.SiteId &&
+                                      ui.Scope == request.Scope &&
                                       !ui.IsUsed && 
                                       ui.ExpiresAt > DateTime.UtcNow);
 
@@ -555,7 +575,7 @@ public class UserService : IUserService
             return new InvitationResponse
             {
                 Success = false,
-                Message = "User already has a pending invitation for this tenant"
+                Message = "User already has a pending invitation for this scope"
             };
         }
 
@@ -571,16 +591,38 @@ public class UserService : IUserService
         {
             Email = request.Email,
             TenantId = request.TenantId,
+            SiteId = request.SiteId,
             InvitationToken = invitationToken,
-            InvitedRoles = request.RoleIds != null && request.RoleIds.Any() 
-                ? System.Text.Json.JsonSerializer.Serialize(request.RoleIds) 
-                : null,
+            Scope = request.Scope,
             ExpiresAt = DateTime.UtcNow.AddDays(7), // 7 days expiration
             CreatedBy = invitedByUserId
         };
 
         _context.UserInvitations.Add(invitation);
         await _uow.CompleteAsync();
+        
+        // Send invitation email
+        try
+        {
+            var emailSent = await _emailService.SendInvitationEmailAsync(
+                request.Email, 
+                invitationToken, 
+                request.Email, // Using email as userName for now, will be updated when user registers
+                request.Scope, 
+                request.TenantId, 
+                request.SiteId);
+            
+            if (!emailSent)
+            {
+                _logger.LogWarning("Failed to send invitation email to {Email} for scope {Scope}", 
+                    request.Email, request.Scope);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending invitation email to {Email} for scope {Scope}", 
+                request.Email, request.Scope);
+        }
 
         return new InvitationResponse
         {
@@ -598,20 +640,6 @@ public class UserService : IUserService
                                       ui.ExpiresAt > DateTime.UtcNow);
     }
 
-    public async Task<UserExistenceCheckDto> CheckUserExistenceAsync(string email, Guid tenantId)
-    {
-        var user = await GetUserByEmail(email);
-        var result = new UserExistenceCheckDto { Email = email };
-
-        if (user != null)
-        {
-            // Get user's roles in this tenant
-            var roles = await GetUserRoles(user.Id, RoleScope.Tenant, tenantId);
-            result.Roles = _mapper.Map<List<RoleNoPermissionDto>>(roles);
-        }
-
-        return result;
-    }
 
     public async Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId)
     {
@@ -664,89 +692,4 @@ public class UserService : IUserService
         return hasTenantAllSitesPermission;
     }
 
-    public async Task RemoveUserFromTenant(Guid userId, Guid tenantId)
-    {
-        // Validate user exists
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user == null)
-            throw new NotFoundException($"User with ID {userId} not found");
-
-        // Remove all site-scoped roles for this user in all sites within this tenant
-        var siteRoles = await _context.UserRoles
-            .Where(ur => ur.UserId == userId && 
-                         ur.Scope == RoleScope.Site && 
-                         ur.TenantId == tenantId)
-            .ToListAsync();
-        
-        _context.UserRoles.RemoveRange(siteRoles);
-        
-        // Remove all tenant-scoped roles for this user in this tenant
-        var tenantRoles = await _context.UserRoles
-            .Where(ur => ur.UserId == userId && 
-                        ur.Scope == RoleScope.Tenant && 
-                        ur.TenantId == tenantId)
-            .ToListAsync();
-        
-        _context.UserRoles.RemoveRange(tenantRoles);
-        
-        // Revoke all refresh tokens for this user in this tenant context
-        var refreshTokens = await _context.RefreshTokens
-            .Where(rt => rt.UserId == userId && rt.TenantId == tenantId && !rt.IsRevoked)
-            .ToListAsync();
-        
-        foreach (var token in refreshTokens)
-        {
-            token.IsRevoked = true;
-        }
-
-        await _uow.CompleteAsync();
-
-        // Invalidate caches
-        InvalidateUserTenantCache(userId);
-        InvalidateUserSiteCache(userId, tenantId);
-
-        _logger.LogInformation("Removed user {UserId} from tenant {TenantId} including all roles, associations, and refresh tokens", userId, tenantId);
-    }
-
-    public async Task RemoveUserFromSite(Guid userId, Guid siteId)
-    {
-        // Validate user exists
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user == null)
-            throw new NotFoundException($"User with ID {userId} not found");
-
-        // Get site info to validate tenant
-        var site = await _context.Sites
-            .FirstOrDefaultAsync(s => s.Id == siteId);
-        
-        if (site == null)
-            throw new NotFoundException($"Site with ID {siteId} not found");
-
-        // Remove all site-scoped roles for this user in this specific site
-        var siteRoles = await _context.UserRoles
-            .Where(ur => ur.UserId == userId && 
-                        ur.Scope == RoleScope.Site && 
-                        ur.SiteId == siteId)
-            .ToListAsync();
-        
-        _context.UserRoles.RemoveRange(siteRoles);
-
-
-        // Revoke all refresh tokens for this user in this site context
-        var refreshTokens = await _context.RefreshTokens
-            .Where(rt => rt.UserId == userId && rt.SiteId == siteId && !rt.IsRevoked)
-            .ToListAsync();
-        
-        foreach (var token in refreshTokens)
-        {
-            token.IsRevoked = true;
-        }
-
-        await _uow.CompleteAsync();
-
-        // Invalidate caches
-        InvalidateUserSiteCache(userId, site.TenantId);
-
-        _logger.LogInformation("Removed user {UserId} from site {SiteId} including all roles, associations, and refresh tokens", userId, siteId);
-    }
 }

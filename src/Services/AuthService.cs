@@ -344,23 +344,8 @@ public class AuthService : IAuthService
             return true; // Already confirmed
         }
 
-        // Get branding context
-        var branding = await _brandingService.GetBrandingContextAsync(subdomain, tenantId);
-
         var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-        var encodedToken = HttpUtility.UrlEncode(token);
-        var encodedUserId = HttpUtility.UrlEncode(user.Id.ToString());
-        
-        // Use the branding context to build the confirmation URL
-        var confirmationUrl = $"{branding.BaseUrl}/confirm-email?token={encodedToken}&userId={encodedUserId}";
-        
-        // Add return URL if provided
-        if (!string.IsNullOrEmpty(returnUrl))
-        {
-            confirmationUrl += $"&returnUrl={HttpUtility.UrlEncode(returnUrl)}";
-        }
-
-        return await _emailService.SendEmailConfirmationAsync(user.Email!, confirmationUrl, user.UserName ?? user.Email!, branding);
+        return await _emailService.SendEmailConfirmationAsync(user.Email!, token, user.Id, user.UserName ?? user.Email!, tenantId, returnUrl);
     }
 
     public async Task<bool> ConfirmEmailAsync(Guid userId, string token, string? subdomain = null, Guid? tenantId = null)
@@ -378,10 +363,8 @@ public class AuthService : IAuthService
         {
             _logger.LogInformation("Email confirmed successfully for user: {UserId}", userId);
             
-            var branding = await _brandingService.GetBrandingContextAsync(subdomain, tenantId);
-            
             // Send welcome email after successful confirmation
-            await _emailService.SendWelcomeEmailAsync(user.Email!, user.UserName ?? user.Email!, branding);
+            await _emailService.SendWelcomeEmailAsync(user.Email!, user.UserName ?? user.Email!, tenantId);
             
             return true;
         }
@@ -401,23 +384,8 @@ public class AuthService : IAuthService
             return true; // Don't reveal that the user doesn't exist or is unconfirmed
         }
 
-        // Get branding context
-        var branding = await _brandingService.GetBrandingContextAsync(subdomain, tenantId);
-
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-        var encodedToken = HttpUtility.UrlEncode(token);
-        var encodedUserId = HttpUtility.UrlEncode(user.Id.ToString());
-        
-        // Use the branding context to build the reset URL
-        var resetUrl = $"{branding.BaseUrl}/reset-password?token={encodedToken}&userId={encodedUserId}";
-        
-        // Add return URL if provided
-        if (!string.IsNullOrEmpty(returnUrl))
-        {
-            resetUrl += $"&returnUrl={HttpUtility.UrlEncode(returnUrl)}";
-        }
-
-        return await _emailService.SendPasswordResetAsync(user.Email!, resetUrl, user.UserName ?? user.Email!, branding);
+        return await _emailService.SendPasswordResetAsync(user.Email!, token, user.Id, user.UserName ?? user.Email!, tenantId, returnUrl);
     }
 
     public async Task<bool> ResetPasswordAsync(Guid userId, string token, string newPassword, string? subdomain = null, Guid? tenantId = null)
@@ -822,8 +790,31 @@ public class AuthService : IAuthService
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser != null)
         {
-            // User exists, just add them to the tenant with roles
-            await ProcessInvitationForExistingUser(existingUser, invitation);
+            // Check if this is a placeholder user (no password set)
+            if (string.IsNullOrEmpty(existingUser.PasswordHash))
+            {
+                // Complete placeholder user registration by setting password
+                var addPasswordResult = await _userManager.AddPasswordAsync(existingUser, request.Password);
+                if (!addPasswordResult.Succeeded)
+                {
+                    return addPasswordResult;
+                }
+                
+                // Confirm email for completed registration
+                existingUser.EmailConfirmed = true;
+                var updateResult = await _userManager.UpdateAsync(existingUser);
+                if (!updateResult.Succeeded)
+                {
+                    return updateResult;
+                }
+                
+                _logger.LogInformation("Completed placeholder user registration for email {Email}", request.Email);
+            }
+            else
+            {
+                // User already has password, just add them to tenant if needed
+                await ProcessInvitationForExistingUser(existingUser, invitation);
+            }
             
             // Mark invitation as used
             invitation.IsUsed = true;
@@ -833,7 +824,8 @@ public class AuthService : IAuthService
             return IdentityResult.Success;
         }
 
-        // Create new user
+        // This should rarely happen now since we create placeholder users
+        // Create new user (fallback for edge cases)
         var newUser = new AuthUser
         {
             UserName = request.Email,
@@ -847,7 +839,7 @@ public class AuthService : IAuthService
             return createResult;
         }
 
-        // Process invitation for new user
+        // Process invitation for new user (only applies roles if stored in invitation)
         await ProcessInvitationForExistingUser(newUser, invitation);
 
         // Mark invitation as used
@@ -856,8 +848,7 @@ public class AuthService : IAuthService
         await _uow.CompleteAsync();
 
         // Send welcome email
-        var branding = await _brandingService.GetBrandingContextAsync(null, invitation.TenantId);
-        await _emailService.SendWelcomeEmailAsync(newUser.Email!, newUser.UserName ?? newUser.Email!, branding);
+        await _emailService.SendWelcomeEmailAsync(newUser.Email!, newUser.UserName ?? newUser.Email!, invitation.TenantId);
 
         // Publish user-created message
         var userCreatedMessage = new UserCreatedMessage
@@ -870,28 +861,12 @@ public class AuthService : IAuthService
         return IdentityResult.Success;
     }
 
-    private async Task ProcessInvitationForExistingUser(AuthUser user, UserInvitation invitation)
+    private Task ProcessInvitationForExistingUser(AuthUser user, UserInvitation invitation)
     {
-        // Add invited roles if any
-        if (!string.IsNullOrEmpty(invitation.InvitedRoles))
-        {
-            var roleIds = System.Text.Json.JsonSerializer.Deserialize<List<string>>(invitation.InvitedRoles);
-            if (roleIds != null && roleIds.Any())
-            {
-                foreach (var roleId in roleIds)
-                {
-                    var addRoleDto = new AddUserToRoleDto
-                    {
-                        Email = user.Email!,
-                        TenantId = invitation.TenantId,
-                        RoleId = roleId,
-                        Scope = RoleScope.Tenant
-                    };
-                    await _userService.AddUserToRole(addRoleDto, RoleScope.Tenant);
-                }
-            }
-        }
-        // If no roles specified, user is created but has no tenant/site access until roles are assigned later
+        // Roles are now assigned immediately during invitation creation
+        // This method is kept for backwards compatibility but no longer applies roles
+        // The user already has their roles assigned from the invitation process
+        return Task.CompletedTask;
     }
 }
 

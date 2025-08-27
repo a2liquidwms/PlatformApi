@@ -14,15 +14,16 @@ public class UserInvitation : BaseObject
     [StringLength(255)]
     public required string Email { get; set; }
     
-    [Required]
-    public required Guid TenantId { get; set; }
+    public Guid? TenantId { get; set; }
+    
+    public Guid? SiteId { get; set; }
     
     [Required]
     [StringLength(255)]
     public required string InvitationToken { get; set; }
     
-    [Column(TypeName = "json")]
-    public string? InvitedRoles { get; set; }
+    [Required]
+    public required RoleScope Scope { get; set; }
     
     [Required]
     public required DateTime ExpiresAt { get; set; }

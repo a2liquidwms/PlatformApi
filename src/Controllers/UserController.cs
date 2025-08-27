@@ -98,7 +98,7 @@ public class UserController : ControllerBase
     // Add user to site role
     [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
-    [HttpPost("role/site/add")]
+    [HttpPost("role/site")]
     public async Task<ActionResult> AddUserToRoleSite([FromBody] AddUserToSiteRoleDto dto)
     {
         try
@@ -134,7 +134,7 @@ public class UserController : ControllerBase
     
     [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.TenantManageUsers)]
-    [HttpPost("role/tenant/add")]
+    [HttpPost("role/tenant")]
     public async Task<ActionResult> AddUserToRoleTenant([FromBody] AddUserToTenantRoleDto dto)
     {
         try
@@ -168,7 +168,7 @@ public class UserController : ControllerBase
     }
     
     [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
-    [HttpPost("role/internal/add")]
+    [HttpPost("role/internal")]
     public async Task<ActionResult> AddUserToRoleInternal([FromBody] AddUserToInternalRoleDto dto)
     {
         try
@@ -202,7 +202,7 @@ public class UserController : ControllerBase
     // Remove user from tenant role
     [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.TenantManageUsers)]
-    [HttpPost("role/tenant/remove")]
+    [HttpDelete("role/tenant")]
     public async Task<ActionResult> RemoveUserFromTenantRole([FromBody] RemoveUserFromTenantRoleDto dto)
     {
         try
@@ -239,7 +239,7 @@ public class UserController : ControllerBase
     // Remove user from site role
     [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
-    [HttpPost("role/site/remove")]
+    [HttpDelete("role/site")]
     public async Task<ActionResult> RemoveUserFromSiteRole([FromBody] RemoveUserFromSiteRoleDto dto)
     {
         try
@@ -275,7 +275,7 @@ public class UserController : ControllerBase
 
     // Remove user from internal role
     [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
-    [HttpPost("role/internal/remove")]
+    [HttpDelete("role/internal")]
     public async Task<ActionResult> RemoveUserFromInternalRole([FromBody] RemoveUserFromInternalRoleDto dto)
     {
         try
@@ -366,9 +366,9 @@ public class UserController : ControllerBase
 
 
     // Check if user exists by username
-    [RequirePermission(RolePermissionConstants.AllCheckUsers)]
-    [HttpGet("check/{userName}")]
-    public async Task<ActionResult<UserLookupDto>> CheckUserByUserName([FromRoute] string userName)
+    [RequirePermission(RolePermissionConstants.AdminsLookupUsers)]
+    [HttpGet("lookup/{userName}")]
+    public async Task<ActionResult<UserLookupDto>> LookupUserByUserName([FromRoute] string userName)
     {
         try
         {
@@ -383,6 +383,166 @@ public class UserController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking user existence for userName {UserName}", userName);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Invite user to tenant
+    [RequireTenantAccess]
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
+    [HttpPost("invite/tenant")]
+    public async Task<ActionResult<InvitationResponse>> InviteTenantUser([FromBody] InviteTenantUserRequest request)
+    {
+        try
+        {
+            var tenantId = _tenantHelper.GetTenantId();
+            var currentUserId = _userHelper.GetCurrentUserId();
+            
+            // Map to the generic DTO for service call
+            var inviteRequest = new InviteUserRequest
+            {
+                Email = request.Email,
+                TenantId = tenantId,
+                SiteId = null,
+                RoleId = request.RoleId,
+                Scope = RoleScope.Tenant
+            };
+            
+            var response = await _userService.InviteUserAsync(inviteRequest, RoleScope.Tenant, currentUserId.ToString());
+            
+            if (response.Success)
+            {
+                return Ok(response);
+            }
+            else
+            {
+                return BadRequest(response);
+            }
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error inviting user {Email} to tenant", request.Email);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Invite user to site
+    [RequireTenantAccess]
+    [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
+    [HttpPost("invite/site")]
+    public async Task<ActionResult<InvitationResponse>> InviteSiteUser([FromBody] InviteSiteUserRequest request)
+    {
+        try
+        {
+            var tenantId = _tenantHelper.GetTenantId();
+            var currentUserId = _userHelper.GetCurrentUserId();
+            
+            // Map to the generic DTO for service call
+            var inviteRequest = new InviteUserRequest
+            {
+                Email = request.Email,
+                TenantId = tenantId,
+                SiteId = request.SiteId,
+                RoleId = request.RoleId,
+                Scope = RoleScope.Site
+            };
+            
+            var response = await _userService.InviteUserAsync(inviteRequest, RoleScope.Site, currentUserId.ToString());
+            
+            if (response.Success)
+            {
+                return Ok(response);
+            }
+            else
+            {
+                return BadRequest(response);
+            }
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error inviting user {Email} to site", request.Email);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Invite user to internal role
+    [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
+    [HttpPost("invite/internal")]
+    public async Task<ActionResult<InvitationResponse>> InviteInternalUser([FromBody] InviteInternalUserRequest request)
+    {
+        try
+        {
+            var currentUserId = _userHelper.GetCurrentUserId();
+            
+            // Map to the generic DTO for service call
+            var inviteRequest = new InviteUserRequest
+            {
+                Email = request.Email,
+                TenantId = null,
+                SiteId = null,
+                RoleId = request.RoleId,
+                Scope = RoleScope.Internal
+            };
+            
+            var response = await _userService.InviteUserAsync(inviteRequest, RoleScope.Internal, currentUserId.ToString());
+            
+            if (response.Success)
+            {
+                return Ok(response);
+            }
+            else
+            {
+                return BadRequest(response);
+            }
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error inviting user {Email} to internal role", request.Email);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+
+    // Get pending invitations for current tenant
+    [RequireTenantAccess]
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
+    [HttpGet("invitations")]
+    public async Task<ActionResult<IEnumerable<UserInvitation>>> GetPendingInvitations()
+    {
+        try
+        {
+            var tenantId = _tenantHelper.GetTenantId();
+            var invitations = await _userService.GetPendingInvitationsAsync(tenantId);
+            
+            return Ok(invitations);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting pending invitations for tenant");
             return StatusCode(500, "Internal server error");
         }
     }

@@ -12,17 +12,13 @@ public interface IUserService
     
     
     // Role management (scope-aware)
-    Task<bool> AddUserToRole(AddUserToRoleDto dto);
     Task<bool> AddUserToRole(AddUserToRoleDto dto, RoleScope expectedScope);
     
     // Secure role removal (scope-specific)
     Task RemoveUserFromRole(RemoveUserFromRoleDto dto, RoleScope expectedScope);
     
     // User lookup helpers
-    Task<AuthUser?> GetUserByEmail(string email);
     Task<UserLookupDto?> GetUserByUserName(string userName);
-    Task<IEnumerable<Role>> GetUserRoles(Guid userId, RoleScope scope, Guid? tenantId = null, Guid? siteId = null);
-    Task<IEnumerable<Permission>?> GetUserPermissions(Guid userId, Guid? tenantId = null, Guid? siteId = null);
     
     // User membership lookups
     Task<IEnumerable<TenantDto>> GetUserTenants(Guid userId, bool forLogin = false);
@@ -37,14 +33,10 @@ public interface IUserService
     Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId, bool forLogin = false);
     
     // User invitation methods
-    Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, string invitedByUserId);
+    Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, RoleScope expectedScope, string invitedByUserId);
     Task<UserInvitation?> ValidateInvitationTokenAsync(string token);
-    Task<UserExistenceCheckDto> CheckUserExistenceAsync(string email, Guid tenantId);
     Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId);
     
-    // User removal methods
-    Task RemoveUserFromTenant(Guid userId, Guid tenantId);
-    Task RemoveUserFromSite(Guid userId, Guid siteId);
     
     // Cache invalidation methods
     void InvalidateUserTenantCache(Guid userId);

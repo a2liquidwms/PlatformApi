@@ -20,7 +20,7 @@ public static class RolePermissionConstants
     
     public const string SysAdminManagePermissions ="systemadmin.manage.permissions";
     
-    public const string AllCheckUsers = "all.check.users";
+    public const string AdminsLookupUsers = "admins.lookup.users";
     
     public const string DefaultAll = "default:all";
 
