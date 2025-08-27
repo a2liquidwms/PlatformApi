@@ -628,6 +628,46 @@ public class UserService : IUserService
             .ToListAsync();
     }
 
+    public async Task DeleteInvitationAsync(string email)
+    {
+        // Find unused invitation by email
+        var invitation = await _context.UserInvitations
+            .FirstOrDefaultAsync(ui => ui.Email == email && 
+                                      !ui.IsUsed && 
+                                      ui.ExpiresAt > DateTime.UtcNow);
+
+        if (invitation == null)
+        {
+            throw new NotFoundException("Open invitation does not exist");
+        }
+
+        // Find user by email
+        var user = await _userManager.FindByEmailAsync(email);
+        
+        if (user != null)
+        {
+            // Check if user email is confirmed
+            if (user.EmailConfirmed)
+            {
+                throw new InvalidDataException("User already accepted invite");
+            }
+
+            // User exists but email not confirmed - remove all user roles and delete user
+            var userRoles = await _context.UserRoles
+                .Where(ur => ur.UserId == user.Id)
+                .ToListAsync();
+
+            _context.UserRoles.RemoveRange(userRoles);
+
+            await _userManager.DeleteAsync(user);
+        }
+
+        // Remove the invitation
+        _context.UserInvitations.Remove(invitation);
+        
+        await _uow.CompleteAsync();
+    }
+
 
 
     private async Task<bool> IsSystemAdminByRoles(Guid userId)

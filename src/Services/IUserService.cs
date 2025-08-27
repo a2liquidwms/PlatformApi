@@ -36,6 +36,7 @@ public interface IUserService
     Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, RoleScope expectedScope, string invitedByUserId);
     Task<UserInvitation?> ValidateInvitationTokenAsync(string token);
     Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId);
+    Task DeleteInvitationAsync(string email);
     
     
 }

@@ -547,4 +547,30 @@ public class UserController : ControllerBase
         }
     }
 
+    // Delete invitation by email
+    [RequireTenantAccess]
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
+    [HttpDelete("invitation/{email}")]
+    public async Task<ActionResult> DeleteInvitation([FromRoute] string email)
+    {
+        try
+        {
+            await _userService.DeleteInvitationAsync(email);
+            return Ok(new { Message = "Invitation deleted successfully" });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting invitation for email {Email}", email);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
 }
