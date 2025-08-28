@@ -47,6 +47,8 @@ public class PermissionService : IPermissionService
     {
         _context.Permissions.Add(obj);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Permission {PermissionCode} created successfully", obj.Code);
         return obj;
     }
     
@@ -59,6 +61,8 @@ public class PermissionService : IPermissionService
                 _context.Permissions.Add(perm);
             }
             await _uow.CompleteAsync();
+            
+            _logger.LogInformation("Multiple permissions created successfully");
             return objs.Length;
         }
         catch (Exception ex)
@@ -86,6 +90,8 @@ public class PermissionService : IPermissionService
 
         _context.Permissions.Update(obj);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Permission {PermissionCode} updated successfully", code);
         return true;
     }
 
@@ -98,6 +104,8 @@ public class PermissionService : IPermissionService
         }
         _context.Permissions.Remove(obj);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Permission {PermissionCode} deleted successfully", code);
         return true;
     }
     
@@ -134,6 +142,8 @@ public class PermissionService : IPermissionService
     {
         _context.Roles.Add(obj);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Role {RoleName} created successfully with ID {RoleId}", obj.Name, obj.Id);
         return obj;
     }
 
@@ -154,6 +164,8 @@ public class PermissionService : IPermissionService
         
         _context.Roles.Update(obj);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Role {RoleId} updated successfully", id);
         return true;
     }
 
@@ -172,6 +184,8 @@ public class PermissionService : IPermissionService
         
         _context.Roles.Remove(obj);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Role {RoleId} deleted successfully", id);
         return true;
     }
 

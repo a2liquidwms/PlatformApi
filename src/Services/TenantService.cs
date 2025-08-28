@@ -45,6 +45,8 @@ public class TenantService : ITenantService
         _context.Tenants.Add(obj);
         await _uow.CompleteAsync();
         
+        _logger.LogInformation("Tenant {TenantName} created successfully with ID {TenantId}", obj.Name, obj.Id);
+        
         // Publish tenant-created message
         var tenantCreatedMessage = new TenantCreatedMessage
         {
@@ -79,6 +81,8 @@ public class TenantService : ITenantService
         _context.Tenants.Update(obj);
         await _uow.CompleteAsync();
         
+        _logger.LogInformation("Tenant {TenantId} updated successfully", id);
+        
         // Invalidate all user tenant caches since tenant was updated
         await _cacheService.InvalidateAllCachedUserTenantsAsync();
         
@@ -94,6 +98,8 @@ public class TenantService : ITenantService
         }
         _context.Tenants.Remove(obj);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Tenant {TenantId} deleted successfully", id);
         
         // Invalidate all user tenant caches since tenant was deleted
         await _cacheService.InvalidateAllCachedUserTenantsAsync();
@@ -135,6 +141,8 @@ public class TenantService : ITenantService
         
         _context.TenantConfigs.Update(obj);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Tenant config updated successfully for tenant {TenantId}", tenantId);
         return true;
     }
 
@@ -173,6 +181,8 @@ public class TenantService : ITenantService
 
         _context.Sites.Add(site);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Site {SiteName} created successfully with ID {SiteId}", site.Name, site.Id);
         return site;
     }
 
@@ -198,6 +208,8 @@ public class TenantService : ITenantService
 
         _context.Sites.Update(site);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Site {SiteId} updated successfully", id);
         return true;
     }
 
@@ -211,6 +223,8 @@ public class TenantService : ITenantService
 
         _context.Sites.Remove(site);
         await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Site {SiteId} deleted successfully", id);
         return true;
     }
 

@@ -65,7 +65,6 @@ public class PermissionController : ControllerBase
             var obj = _mapper.Map<Role>(objCreateDto);
             var result = await _permissionService.AddRole(obj);
             
-            _logger.LogInformation("Role {RoleName} created successfully with ID {RoleId}", objCreateDto.Name, result.Id);
             return CreatedAtAction(nameof(GetRoleById), new { id = result.Id }, result);
         }
         catch (InvalidDataException ex)
@@ -93,7 +92,6 @@ public class PermissionController : ControllerBase
     
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
     
-            _logger.LogInformation("Role {RoleId} updated successfully", id);
             return NoContent();
         }
         catch (InvalidDataException ex)
@@ -123,7 +121,6 @@ public class PermissionController : ControllerBase
     
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
     
-            _logger.LogInformation("Role {RoleId} deleted successfully", id);
             return NoContent();
         } 
         catch (NotFoundException)
@@ -183,7 +180,6 @@ public class PermissionController : ControllerBase
             var obj = _mapper.Map<Permission>(objCreateMetaDto);
             var result = await _permissionService.AddPermission(obj);
             
-            _logger.LogInformation("Permission {PermissionCode} created successfully", objCreateMetaDto.Code);
             return CreatedAtAction(nameof(GetPermissionByCode), new { code = result.Code }, result);
         }
         catch (InvalidDataException ex)
@@ -207,7 +203,6 @@ public class PermissionController : ControllerBase
             var objs = _mapper.Map<Permission[]>(objCreateDtos);
             var resultCount = await _permissionService.AddPermissionsMulti(objs);
             
-            _logger.LogInformation("Multiple permissions created successfully");
             return Ok($"{resultCount} permissions created");
         }
         catch (ArgumentException ex)
@@ -235,7 +230,6 @@ public class PermissionController : ControllerBase
     
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
     
-            _logger.LogInformation("Permission {PermissionCode} updated successfully", code);
             return NoContent();
         }
         catch (InvalidDataException ex)
@@ -266,7 +260,6 @@ public class PermissionController : ControllerBase
     
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
     
-            _logger.LogInformation("Permission {PermissionCode} deleted successfully", code);
             return NoContent();
         } 
         catch (NotFoundException)

@@ -50,6 +50,9 @@ public class BrandingService : IBrandingService
 
         if (tenantConfig?.Tenant != null)
         {
+            _logger.LogInformation("Tenant branding selected for {SiteName} (subdomain: {SubDomain}, tenantId: {TenantId})", 
+                tenantConfig.Tenant.Name, tenantConfig.Tenant.SubDomain, tenantConfig.TenantId);
+            
             return new BrandingContext
             {
                 SiteName = tenantConfig.Tenant.Name,
@@ -62,6 +65,9 @@ public class BrandingService : IBrandingService
             };
         }
 
+        _logger.LogInformation("Falling back to default branding (subdomain: {Subdomain}, tenantId: {TenantId})", 
+            subdomain, tenantId);
+            
         return await GetDefaultBrandingContextAsync();
     }
 

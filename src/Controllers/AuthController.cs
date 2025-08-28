@@ -89,8 +89,6 @@ public class AuthController : ControllerBase
         try
         {
             var token = await _authService.Login(request.Email, request.Password, request.TenantId, request.SiteId);
-            _logger.LogInformation("User {Email} logged in successfully with tenant {TenantId} and site {SiteId}", 
-                request.Email, request.TenantId, request.SiteId);
             return HandleTokenResponse(token);
         }
         catch (Exception e)
@@ -216,8 +214,6 @@ public class AuthController : ControllerBase
 
             if (result)
             {
-                _logger.LogInformation("Email confirmed successfully for user {UserId} with tenant {TenantId}", 
-                    request.UserId, request.TenantId);
                 return Ok(new { Message = "Email confirmed successfully! You can now log in." });
             }
 
@@ -242,8 +238,6 @@ public class AuthController : ControllerBase
 
             if (result)
             {
-                _logger.LogInformation("Confirmation email sent successfully to {Email} with tenant {TenantId}", 
-                    request.Email, request.TenantId);
                 return Ok(new { Message = "If the email address is registered, a confirmation email has been sent." });
             }
 
@@ -264,10 +258,7 @@ public class AuthController : ControllerBase
         try
         {
             await _authService.SendPasswordResetAsync(request.Email, null, request.TenantId);
-
-            _logger.LogInformation("Password reset email process completed for {Email} with tenant {TenantId}", 
-                request.Email, request.TenantId);
-            // Always return success to prevent email enumeration
+            
             return Ok(new { Message = "If the email address is registered, a password reset email has been sent." });
         }
         catch (Exception ex)
@@ -288,8 +279,6 @@ public class AuthController : ControllerBase
 
             if (result)
             {
-                _logger.LogInformation("Password reset completed successfully for user {UserId} with tenant {TenantId}", 
-                    request.UserId, request.TenantId);
                 return Ok(new { Message = "Password reset successfully! You can now log in with your new password." });
             }
 
@@ -383,8 +372,7 @@ public class AuthController : ControllerBase
             {
                 return BadRequest(result.Errors);
             }
-
-            _logger.LogInformation("User {Email} registered successfully via invitation", request.Email);
+            
             return Ok(new { Message = "User registered successfully. Please log in with your credentials." });
         }
         catch (Exception ex)

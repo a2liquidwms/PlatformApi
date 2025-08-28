@@ -66,7 +66,6 @@ public class TenantController : ControllerBase
             var obj = _mapper.Map<Tenant>(objDto);
             var result = await _tenantService.Add(obj);
             
-            _logger.LogInformation("Tenant {TenantName} created successfully with ID {TenantId}", objDto.Name, result.Id);
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
         catch (InvalidDataException ex)
@@ -93,7 +92,6 @@ public class TenantController : ControllerBase
 
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
 
-            _logger.LogInformation("Tenant {TenantId} updated successfully", id);
             return NoContent();
         }
         catch (InvalidDataException ex)
@@ -123,7 +121,6 @@ public class TenantController : ControllerBase
 
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
 
-            _logger.LogInformation("Tenant {TenantId} deleted successfully", id);
             return NoContent();
         } 
         catch (NotFoundException)
@@ -205,7 +202,6 @@ public class TenantController : ControllerBase
             
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
             
-            _logger.LogInformation("Tenant config updated successfully for tenant {TenantId}", id);
             return NoContent();
         }
         catch (InvalidDataException ex)
@@ -280,7 +276,6 @@ public class TenantController : ControllerBase
         {
             var site = _mapper.Map<Site>(siteDto);
             var result = await _tenantService.AddSite(site);
-            _logger.LogInformation("Site {SiteName} created successfully with ID {SiteId}", siteDto.Name, result.Id);
             return CreatedAtAction(nameof(GetSiteById), new { id = result.Id }, _mapper.Map<SiteDto>(result));
         }
         catch (InvalidDataException ex)
@@ -304,7 +299,6 @@ public class TenantController : ControllerBase
             var site = _mapper.Map<Site>(siteDto);
             var result = await _tenantService.UpdateSite(id, site);
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
-            _logger.LogInformation("Site {SiteId} updated successfully", id);
             return NoContent();
         }
         catch (InvalidDataException ex)
@@ -332,7 +326,6 @@ public class TenantController : ControllerBase
         {
             var result = await _tenantService.DeleteSite(id);
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
-            _logger.LogInformation("Site {SiteId} deleted successfully", id);
             return NoContent();
         }
         catch (NotFoundException)
