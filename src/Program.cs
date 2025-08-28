@@ -15,7 +15,6 @@ using PlatformApi.Services;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Json;
-using PlatformApi.Common.Middleware;
 
 Console.WriteLine("🚀 PlatformApi Starting Up");
 

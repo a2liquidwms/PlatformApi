@@ -3,11 +3,9 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using NetStarterCommon.Core.Common.Models;
 using PlatformApi.Common.Constants;
-using PlatformApi.Common.Permissions;
-using PlatformApi.Common.Services;
 using PlatformApi.Services;
 
-namespace PlatformApi;
+namespace PlatformApi.Common.Permissions;
 
 public class PermissionsAuthServerMiddleware
 {
