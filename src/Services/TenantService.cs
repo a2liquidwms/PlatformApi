@@ -64,7 +64,7 @@ public class TenantService : ITenantService
     {
         if (id != obj.Id)
         {
-            _logger.LogInformation("Invalid Id: {Id}", id);
+            _logger.LogWarning("Invalid ID mismatch for tenant update: provided {ProvidedId}, object {ObjectId}", id, obj.Id);
             throw new InvalidDataException(ErrorMessages.KeyNotMatch);
         }
         
@@ -90,7 +90,6 @@ public class TenantService : ITenantService
         var obj = await GetById(id);
         if (obj == null)
         {
-            _logger.LogInformation("Not Found, Id: {Id}", id);
             throw new NotFoundException();
         }
         _context.Tenants.Remove(obj);
@@ -181,7 +180,7 @@ public class TenantService : ITenantService
     {
         if (id != site.Id)
         {
-            _logger.LogInformation("Invalid Site Id: {Id}", id);
+            _logger.LogWarning("Invalid site ID mismatch for site update: provided {ProvidedId}, object {ObjectId}", id, site.Id);
             throw new InvalidDataException(ErrorMessages.KeyNotMatch);
         }
 
@@ -207,7 +206,6 @@ public class TenantService : ITenantService
         var site = await GetSiteById(id);
         if (site == null)
         {
-            _logger.LogInformation("Site not found, Id: {Id}", id);
             throw new NotFoundException();
         }
 

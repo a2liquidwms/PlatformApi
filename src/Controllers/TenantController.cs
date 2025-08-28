@@ -61,11 +61,24 @@ public class TenantController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<TenantDto>> Add(TenantDto objDto)
     {
-        var obj = _mapper.Map<Tenant>(objDto);
-        var result = await _tenantService.Add(obj);
-        
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
-
+        try
+        {
+            var obj = _mapper.Map<Tenant>(objDto);
+            var result = await _tenantService.Add(obj);
+            
+            _logger.LogInformation("Tenant {TenantName} created successfully with ID {TenantId}", objDto.Name, result.Id);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+        catch (InvalidDataException ex)
+        {
+            _logger.LogWarning("Failed to create tenant {TenantName}: {Message}", objDto.Name, ex.Message);
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error creating tenant {TenantName}", objDto.Name);
+            return StatusCode(500, "Internal server error");
+        }
     }
     
     [RequirePermission(RolePermissionConstants.SysAdminManageTenants)]
@@ -80,15 +93,23 @@ public class TenantController : ControllerBase
 
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
 
+            _logger.LogInformation("Tenant {TenantId} updated successfully", id);
             return NoContent();
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to update tenant {TenantId}: {Message}", id, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (NotFoundException)
         {
+            _logger.LogWarning("Tenant {TenantId} not found for update", id);
             return NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error updating tenant {TenantId}", id);
+            return StatusCode(500, "Internal server error");
         }
     }
     
@@ -98,18 +119,23 @@ public class TenantController : ControllerBase
     {
         try
         {
-            _logger.LogTrace("Delete Id: {id}", id);
-
             var result = await _tenantService.Delete(id);
 
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
 
+            _logger.LogInformation("Tenant {TenantId} deleted successfully", id);
             return NoContent();
-        } catch (NotFoundException)
+        } 
+        catch (NotFoundException)
         {
+            _logger.LogWarning("Tenant {TenantId} not found for deletion", id);
             return NotFound();
         }
-        
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error deleting tenant {TenantId}", id);
+            return StatusCode(500, "Internal server error");
+        }
     }
     
     [AllowAnonymous]
@@ -179,11 +205,18 @@ public class TenantController : ControllerBase
             
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
             
+            _logger.LogInformation("Tenant config updated successfully for tenant {TenantId}", id);
             return NoContent();
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to update tenant config for {TenantId}: {Message}", id, ex.Message);
             return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error updating tenant config for {TenantId}", id);
+            return StatusCode(500, "Internal server error");
         }
     }
 
@@ -247,11 +280,18 @@ public class TenantController : ControllerBase
         {
             var site = _mapper.Map<Site>(siteDto);
             var result = await _tenantService.AddSite(site);
+            _logger.LogInformation("Site {SiteName} created successfully with ID {SiteId}", siteDto.Name, result.Id);
             return CreatedAtAction(nameof(GetSiteById), new { id = result.Id }, _mapper.Map<SiteDto>(result));
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to create site {SiteName}: {Message}", siteDto.Name, ex.Message);
             return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error creating site {SiteName}", siteDto.Name);
+            return StatusCode(500, "Internal server error");
         }
     }
 
@@ -264,15 +304,23 @@ public class TenantController : ControllerBase
             var site = _mapper.Map<Site>(siteDto);
             var result = await _tenantService.UpdateSite(id, site);
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
+            _logger.LogInformation("Site {SiteId} updated successfully", id);
             return NoContent();
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to update site {SiteId}: {Message}", id, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (NotFoundException)
         {
+            _logger.LogWarning("Site {SiteId} not found for update", id);
             return NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error updating site {SiteId}", id);
+            return StatusCode(500, "Internal server error");
         }
     }
 
@@ -284,15 +332,17 @@ public class TenantController : ControllerBase
         {
             var result = await _tenantService.DeleteSite(id);
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
+            _logger.LogInformation("Site {SiteId} deleted successfully", id);
             return NoContent();
         }
         catch (NotFoundException)
         {
+            _logger.LogWarning("Site {SiteId} not found for deletion", id);
             return NotFound();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting site with Id: {Id}", id);
+            _logger.LogError(ex, "Unexpected error deleting site {SiteId}", id);
             return StatusCode(500, "Internal server error");
         }
     }

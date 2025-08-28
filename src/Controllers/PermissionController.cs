@@ -60,11 +60,24 @@ public class PermissionController : ControllerBase
     [HttpPost ("roles")]
     public async Task<ActionResult<RoleDto>> AddRole(RoleCreateDto objCreateDto)
     {
-        var obj = _mapper.Map<Role>(objCreateDto);
-        var result = await _permissionService.AddRole(obj);
-        
-        return CreatedAtAction(nameof(GetRoleById), new { id = result.Id }, result);
-
+        try
+        {
+            var obj = _mapper.Map<Role>(objCreateDto);
+            var result = await _permissionService.AddRole(obj);
+            
+            _logger.LogInformation("Role {RoleName} created successfully with ID {RoleId}", objCreateDto.Name, result.Id);
+            return CreatedAtAction(nameof(GetRoleById), new { id = result.Id }, result);
+        }
+        catch (InvalidDataException ex)
+        {
+            _logger.LogWarning("Failed to create role {RoleName}: {Message}", objCreateDto.Name, ex.Message);
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error creating role {RoleName}", objCreateDto.Name);
+            return StatusCode(500, "Internal server error");
+        }
     }
     
     [RequirePermission(RolePermissionConstants.SysAdminManagePermissions)]
@@ -80,15 +93,23 @@ public class PermissionController : ControllerBase
     
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
     
+            _logger.LogInformation("Role {RoleId} updated successfully", id);
             return NoContent();
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to update role {RoleId}: {Message}", id, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (NotFoundException)
         {
+            _logger.LogWarning("Role {RoleId} not found for update", id);
             return NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error updating role {RoleId}", id);
+            return StatusCode(500, "Internal server error");
         }
     }
     
@@ -98,21 +119,28 @@ public class PermissionController : ControllerBase
     {
         try
         {
-            _logger.LogTrace("Delete Id: {id}", id);
-    
             var result = await _permissionService.DeleteRole(id);
     
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
     
+            _logger.LogInformation("Role {RoleId} deleted successfully", id);
             return NoContent();
-        } catch (NotFoundException)
+        } 
+        catch (NotFoundException)
         {
+            _logger.LogWarning("Role {RoleId} not found for deletion", id);
             return NotFound();
-        } catch (InvalidDataException ex)
+        } 
+        catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to delete role {RoleId}: {Message}", id, ex.Message);
             return BadRequest(ex.Message);
         }
-        
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error deleting role {RoleId}", id);
+            return StatusCode(500, "Internal server error");
+        }
     }
     
     [RequirePermission(RolePermissionConstants.SysAdminManagePermissions)]
@@ -150,28 +178,48 @@ public class PermissionController : ControllerBase
     [HttpPost("permissions")]
     public async Task<ActionResult<PermissionDto>> AddPermission(PermissionCreateDto objCreateMetaDto)
     {
-        var obj = _mapper.Map<Permission>(objCreateMetaDto);
-        var result = await _permissionService.AddPermission(obj);
-        
-        return CreatedAtAction(nameof(GetPermissionByCode), new { code = result.Code }, result);
+        try
+        {
+            var obj = _mapper.Map<Permission>(objCreateMetaDto);
+            var result = await _permissionService.AddPermission(obj);
+            
+            _logger.LogInformation("Permission {PermissionCode} created successfully", objCreateMetaDto.Code);
+            return CreatedAtAction(nameof(GetPermissionByCode), new { code = result.Code }, result);
+        }
+        catch (InvalidDataException ex)
+        {
+            _logger.LogWarning("Failed to create permission {PermissionCode}: {Message}", objCreateMetaDto.Code, ex.Message);
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error creating permission {PermissionCode}", objCreateMetaDto.Code);
+            return StatusCode(500, "Internal server error");
+        }
     }
     
     [RequirePermission(RolePermissionConstants.SysAdminManagePermissions)]
     [HttpPost("permissions/multi")]
     public async Task<ActionResult<PermissionDto>> AddPermissionMulti(PermissionCreateDto[] objCreateDtos)
     {
-        var resultCount = 0;
         try
         {
             var objs = _mapper.Map<Permission[]>(objCreateDtos);
-            resultCount = await _permissionService.AddPermissionsMulti(objs);
+            var resultCount = await _permissionService.AddPermissionsMulti(objs);
+            
+            _logger.LogInformation("Multiple permissions created successfully");
+            return Ok($"{resultCount} permissions created");
         }
         catch (ArgumentException ex)
         {
+            _logger.LogWarning("Failed to create multiple permissions: {Message}", ex.Message);
             return BadRequest(ex.Message);
         }
-
-        return Ok($"{resultCount} permissions created");
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error creating multiple permissions");
+            return StatusCode(500, "Internal server error");
+        }
     }
     
     [RequirePermission(RolePermissionConstants.SysAdminManagePermissions)]
@@ -187,15 +235,23 @@ public class PermissionController : ControllerBase
     
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
     
+            _logger.LogInformation("Permission {PermissionCode} updated successfully", code);
             return NoContent();
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to update permission {PermissionCode}: {Message}", code, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (NotFoundException)
         {
+            _logger.LogWarning("Permission {PermissionCode} not found for update", code);
             return NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error updating permission {PermissionCode}", code);
+            return StatusCode(500, "Internal server error");
         }
     }
     
@@ -206,16 +262,22 @@ public class PermissionController : ControllerBase
     {
         try
         {
-            _logger.LogTrace("Delete Code: {code}", code);
-    
             var result = await _permissionService.DeletePermission(code);
     
             if (!result) return BadRequest(ErrorMessages.ErrorSaving);
     
+            _logger.LogInformation("Permission {PermissionCode} deleted successfully", code);
             return NoContent();
-        } catch (NotFoundException)
+        } 
+        catch (NotFoundException)
         {
+            _logger.LogWarning("Permission {PermissionCode} not found for deletion", code);
             return NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error deleting permission {PermissionCode}", code);
+            return StatusCode(500, "Internal server error");
         }
     }
     
@@ -235,19 +297,28 @@ public class PermissionController : ControllerBase
         try
         {
             var result = await _permissionService.AddPermissionToRole(roleId, permissionCode);
+            _logger.LogInformation("Permission {PermissionCode} added to role {RoleId}", permissionCode, roleId);
             return Ok(_mapper.Map<RoleDto>(result));
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to add permission {PermissionCode} to role {RoleId}: {Message}", permissionCode, roleId, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Invalid data adding permission {PermissionCode} to role {RoleId}: {Message}", permissionCode, roleId, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (ServiceException ex)
         {
+            _logger.LogError(ex, "Service error adding permission {PermissionCode} to role {RoleId}", permissionCode, roleId);
             return StatusCode(500, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error adding permission {PermissionCode} to role {RoleId}", permissionCode, roleId);
+            return StatusCode(500, "Internal server error");
         }
     }
 
@@ -258,15 +329,23 @@ public class PermissionController : ControllerBase
         try
         {
             var result = await _permissionService.RemovePermissionFromRole(roleId, permissionCode);
+            _logger.LogInformation("Permission {PermissionCode} removed from role {RoleId}", permissionCode, roleId);
             return Ok(_mapper.Map<RoleDto>(result));
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to remove permission {PermissionCode} from role {RoleId}: {Message}", permissionCode, roleId, ex.Message);
             return NotFound(ex.Message);
         }
         catch (ServiceException ex)
         {
+            _logger.LogError(ex, "Service error removing permission {PermissionCode} from role {RoleId}", permissionCode, roleId);
             return StatusCode(500, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error removing permission {PermissionCode} from role {RoleId}", permissionCode, roleId);
+            return StatusCode(500, "Internal server error");
         }
     }
     

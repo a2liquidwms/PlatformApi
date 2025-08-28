@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Amazon.SimpleEmail;
 using Amazon.SimpleNotificationService;
 using DotNetEnv;
@@ -128,24 +129,7 @@ var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Add Serilog request logging
-app.UseSerilogRequestLogging(options =>
-{
-    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
-    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-    {
-        diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
-        diagnosticContext.Set("UserAgent", httpContext.Request.Headers["User-Agent"].ToString());
-        if (httpContext.User?.Identity?.IsAuthenticated == true)
-        {
-            diagnosticContext.Set("UserId", httpContext.User.Identity.Name);
-        }
-        // Add correlation ID from context
-        if (httpContext.Items.TryGetValue("CorrelationId", out var correlationId))
-        {
-            diagnosticContext.Set("CorrelationId", correlationId);
-        }
-    };
-});
+ConfigureLoggingHTTP(app);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
@@ -212,9 +196,9 @@ void ConfigureLogging(WebApplicationBuilder webApplicationBuilder)
     }
     else
     {
-        // Development: clean, readable format with correlation ID
+        // Development: clean, readable format with correlation ID and user ID
         loggerConfig.WriteTo.Console(
-            outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext:l} {Message:lj} {CorrelationId}{NewLine}{Exception}");
+            outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext:l} {Message:lj} {CorrelationId} {UserId}{NewLine}{Exception}");
     }
 
     // Framework noise filtering - same as your existing logic
@@ -244,4 +228,30 @@ void ConfigureLogging(WebApplicationBuilder webApplicationBuilder)
     
     // Replace built-in logging with Serilog
     webApplicationBuilder.Host.UseSerilog();
+}
+
+void ConfigureLoggingHTTP(WebApplication webApplication)
+{
+    webApplication.UseSerilogRequestLogging(options =>
+    {
+        options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+        options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+        {
+            diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
+            diagnosticContext.Set("UserAgent", httpContext.Request.Headers["User-Agent"].ToString());
+            if (httpContext.User?.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = httpContext.User.FindFirstValue("userid");
+                if (!string.IsNullOrEmpty(userIdClaim))
+                {
+                    diagnosticContext.Set("UserId", userIdClaim);
+                }
+            }
+            // Add correlation ID from context
+            if (httpContext.Items.TryGetValue("CorrelationId", out var correlationId))
+            {
+                diagnosticContext.Set("CorrelationId", correlationId);
+            }
+        };
+    });
 }

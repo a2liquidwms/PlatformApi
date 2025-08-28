@@ -52,22 +52,19 @@ public class PermissionService : IPermissionService
     
     public async Task<int> AddPermissionsMulti(Permission[] objs)
     {
-        var count = 0;
         try
         {
-            
             foreach (var perm in objs)
             {
                 _context.Permissions.Add(perm);
-                count++;
             }
             await _uow.CompleteAsync();
-            return count;
+            return objs.Length;
         }
         catch (Exception ex)
         {
-            var message = ex.InnerException!.Message ?? "Error saving Permissions";
-            _logger.LogError(ex, message);
+            var message = ex.InnerException?.Message ?? "Error saving Permissions";
+            _logger.LogError(ex, "Failed to add multiple permissions: {Message}", message);
             throw new ArgumentException(message);
         }
     }
@@ -76,7 +73,7 @@ public class PermissionService : IPermissionService
     {
         if (code != obj.Code)
         {
-            _logger.LogInformation("Invalid Code: {Code}", code);
+            _logger.LogWarning("Invalid code mismatch for permission update: provided {ProvidedCode}, object {ObjectCode}", code, obj.Code);
             throw new InvalidDataException(ErrorMessages.KeyNotMatch);
         }
         
@@ -97,7 +94,6 @@ public class PermissionService : IPermissionService
         var obj = await GetPermissionByCode(code);
         if (obj == null)
         {
-            _logger.LogInformation("Not Found, Code: {Code}", code);
             throw new NotFoundException();
         }
         _context.Permissions.Remove(obj);
@@ -145,7 +141,7 @@ public class PermissionService : IPermissionService
     {
         if (Guid.Parse(id) != obj.Id)
         {
-            _logger.LogInformation("Invalid Id: {Id}", id);
+            _logger.LogWarning("Invalid ID mismatch for role update: provided {ProvidedId}, object {ObjectId}", id, obj.Id);
             throw new InvalidDataException(ErrorMessages.KeyNotMatch);
         }
         
@@ -166,7 +162,6 @@ public class PermissionService : IPermissionService
         var obj = await GetRoleById(id, true);
         if (obj == null)
         {
-            _logger.LogInformation("Not Found, Id: {Id}", id);
             throw new NotFoundException();
         }
         
