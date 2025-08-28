@@ -321,7 +321,7 @@ public class AuthService : IAuthService
         // Generate new access and refresh tokens
         var tokenBundle = await GenerateTokenBundle(user, oldRefreshToken.TenantId, oldRefreshToken.SiteId);
         
-        _logger.LogInformation("Token refreshed successfully for user {UserId} ({Email}) with tenant {TenantId} and site {SiteId}", 
+        _logger.LogDebug("Token refreshed successfully for user {UserId} ({Email}) with tenant {TenantId} and site {SiteId}", 
             user.Id, user.Email, oldRefreshToken.TenantId, oldRefreshToken.SiteId);
 
         return tokenBundle;

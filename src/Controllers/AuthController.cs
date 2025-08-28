@@ -360,8 +360,6 @@ public class AuthController : ControllerBase
             }
             
             var tokenBundle = await _authService.RefreshToken(refreshToken);
-            _logger.LogInformation("Token refreshed successfully for tenant {TenantId} and site {SiteId}", 
-                tokenBundle.TenantId, tokenBundle.SiteId);
             return HandleTokenResponse(tokenBundle);
         }
         catch (Exception ex)

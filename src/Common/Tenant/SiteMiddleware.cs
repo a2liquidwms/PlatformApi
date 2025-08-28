@@ -50,12 +50,12 @@ public class SiteMiddleware
                 }
                 else
                 {
-                    _logger.LogDebug("No active site claim found in JWT for request: {Path}", context.Request.Path);
+                    _logger.LogTrace("No active site claim found in JWT for request: {Path}", context.Request.Path);
                 }
             }
             else
             {
-                _logger.LogDebug("User not authenticated, skipping site context extraction for request: {Path}", context.Request.Path);
+                _logger.LogTrace("User not authenticated, skipping site context extraction for request: {Path}", context.Request.Path);
             }
 
             // Always continue to next middleware

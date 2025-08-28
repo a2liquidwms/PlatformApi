@@ -384,7 +384,7 @@ public class UserService : IUserService
 
         // Cache the results for regular users
         await _cache.SetCachedUserTenantsAsync(userId, userTenants);
-        _logger.LogInformation("Cached {TenantCount} tenants for user {UserId}", userTenants.Count(), userId);
+        _logger.LogDebug("Cached tenants for user {UserId}", userId);
             
         return userTenants;
     }

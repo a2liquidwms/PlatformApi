@@ -11,6 +11,10 @@ using PlatformApi.Common.Startup;
 using PlatformApi.Common.Tenant;
 using PlatformApi.Data;
 using PlatformApi.Services;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Json;
+using PlatformApi.Common.Middleware;
 
 Console.WriteLine("🚀 PlatformApi Starting Up");
 
@@ -19,7 +23,7 @@ Env.Load();
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 
-SetLogging(builder);
+ConfigureLogging(builder);
 
 // Add services to the container.
 var connectionString = builder.Configuration["DBCONNECTION_AUTH"];
@@ -120,6 +124,29 @@ builder.Services
 
 var app = builder.Build();
 
+// Add correlation ID middleware (must be early in pipeline)
+app.UseMiddleware<CorrelationIdMiddleware>();
+
+// Add Serilog request logging
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
+        diagnosticContext.Set("UserAgent", httpContext.Request.Headers["User-Agent"].ToString());
+        if (httpContext.User?.Identity?.IsAuthenticated == true)
+        {
+            diagnosticContext.Set("UserId", httpContext.User.Identity.Name);
+        }
+        // Add correlation ID from context
+        if (httpContext.Items.TryGetValue("CorrelationId", out var correlationId))
+        {
+            diagnosticContext.Set("CorrelationId", correlationId);
+        }
+    };
+});
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 {
@@ -147,37 +174,74 @@ app.MapControllers();
 
 app.Run();
 
-void SetLogging(WebApplicationBuilder webApplicationBuilder)
+void ConfigureLogging(WebApplicationBuilder webApplicationBuilder)
 {
-    // Configure logging levels to reduce EF Core SQL query noise
-    webApplicationBuilder.Logging.ClearProviders();
-    webApplicationBuilder.Logging.AddConsole();
-
+    // Get configuration values
+    var logLevel = webApplicationBuilder.Configuration.GetValue<string>("LOGGING_LEVEL", "Information");
+    var jsonFormat = webApplicationBuilder.Configuration.GetValue<bool>("LOGGING_JSON_FORMAT", false);
     var efVerboseLogging = webApplicationBuilder.Configuration.GetValue<bool>("LOGGING_EF_VERBOSE", false);
+    
+    // Parse log level
+    if (!Enum.TryParse<LogEventLevel>(logLevel, out var serilogLevel))
+    {
+        serilogLevel = LogEventLevel.Information;
+    }
+
+    // Determine formatter based on environment and configuration
+    var isDevelopment = webApplicationBuilder.Environment.IsDevelopment();
+    var useJsonFormat = jsonFormat || !isDevelopment;
+    
+    // Configure Serilog
+    var loggerConfig = new LoggerConfiguration()
+        .MinimumLevel.Is(serilogLevel)
+        .Enrich.FromLogContext();
+        
+    // Add enrichment based on format - full enrichment for JSON, minimal for development
+    if (useJsonFormat)
+    {
+        loggerConfig
+            .Enrich.WithEnvironmentName()
+            .Enrich.WithProcessId()
+            .Enrich.WithThreadId();
+    }
+
+    // Add console sink with appropriate formatter
+    if (useJsonFormat)
+    {
+        loggerConfig.WriteTo.Console(new JsonFormatter());
+    }
+    else
+    {
+        // Development: clean, readable format with correlation ID
+        loggerConfig.WriteTo.Console(
+            outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext:l} {Message:lj} {CorrelationId}{NewLine}{Exception}");
+    }
+
+    // Framework noise filtering - same as your existing logic
+    loggerConfig.MinimumLevel.Override("Microsoft", LogEventLevel.Warning);
+    
+    // Override specific Microsoft loggers we want to see
+    loggerConfig.MinimumLevel.Override("Microsoft.AspNetCore.Authentication", LogEventLevel.Information);
+    loggerConfig.MinimumLevel.Override("Microsoft.AspNetCore.Authorization", LogEventLevel.Information);
+    loggerConfig.MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information);
+
+    // EF Core noise filtering
     if (!efVerboseLogging)
     {
-        // Filter out all EF Core noise unless explicitly enabled
-        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
-        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Query", LogLevel.Warning);
-        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Connection", LogLevel.Warning);
-        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Infrastructure", LogLevel.Warning);
-        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.ChangeTracking", LogLevel.Warning);
-        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Update", LogLevel.Warning);
+        loggerConfig.MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning);
+        loggerConfig.MinimumLevel.Override("Microsoft.EntityFrameworkCore.Query", LogEventLevel.Warning);
+        loggerConfig.MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Connection", LogEventLevel.Warning);
+        loggerConfig.MinimumLevel.Override("Microsoft.EntityFrameworkCore.Infrastructure", LogEventLevel.Warning);
+        loggerConfig.MinimumLevel.Override("Microsoft.EntityFrameworkCore.ChangeTracking", LogEventLevel.Warning);
+        loggerConfig.MinimumLevel.Override("Microsoft.EntityFrameworkCore.Update", LogEventLevel.Warning);
     }
-    var logLevel = webApplicationBuilder.Configuration.GetValue<string>("LOGGING_LEVEL", "Debug");
-    if (Enum.TryParse<LogLevel>(logLevel, out var parsedLogLevel))
-    {
-        webApplicationBuilder.Logging.SetMinimumLevel(parsedLogLevel);
-    }
-    
-    // Filter out all Microsoft framework debug noise - keeps application debug logs clean
-    builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
-    
-    // Override specific Microsoft loggers that we want to see at Information level
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Routing.EndpointMiddleware", LogLevel.Information); // Useful to see which APIs are called
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication", LogLevel.Information); // Security monitoring  
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Authorization", LogLevel.Information); // Security monitoring
-    builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Information); // Application startup/shutdown info
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Information); // Hosting startup assembly loading
 
+    // Create the logger
+    Log.Logger = loggerConfig.CreateLogger();
+    
+    // Log the configuration on startup
+    Console.WriteLine($"🚀 Logging configured - Level: {serilogLevel}, Format: {(useJsonFormat ? "JSON" : "Console")}, EF Verbose: {efVerboseLogging}");
+    
+    // Replace built-in logging with Serilog
+    webApplicationBuilder.Host.UseSerilog();
 }

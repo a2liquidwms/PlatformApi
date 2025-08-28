@@ -50,7 +50,7 @@ public class UserController : ControllerBase
         try
         {
             var users = await _userService.GetTenantUsers(tenantId);
-            _logger.LogInformation("Retrieved {UserCount} tenant users for tenant {TenantId}", users.Count(), tenantId);
+            _logger.LogInformation("Retrieved tenant users for tenant {TenantId}", tenantId);
             return Ok(users);
         }
         catch (Exception ex)
@@ -68,7 +68,7 @@ public class UserController : ControllerBase
         try
         {
             var users = await _userService.GetSiteUsers(siteId);
-            _logger.LogInformation("Retrieved {UserCount} site users for site {SiteId}", users.Count(), siteId);
+            _logger.LogInformation("Retrieved site users for site {SiteId}", siteId);
             return Ok(users);
         }
         catch (Exception ex)
@@ -86,7 +86,7 @@ public class UserController : ControllerBase
         try
         {
             var users = await _userService.GetInternalUsers();
-            _logger.LogInformation("Retrieved {UserCount} internal users", users.Count());
+            _logger.LogInformation("Retrieved internal users successfully");
             return Ok(users);
         }
         catch (Exception ex)
@@ -349,7 +349,7 @@ public class UserController : ControllerBase
         {
             var userId = _userHelper.GetCurrentUserId();
             var tenants = await _userService.GetUserTenants(userId);
-            _logger.LogInformation("Retrieved {TenantCount} tenants for current user {UserId}", tenants.Count(), userId);
+            _logger.LogInformation("Retrieved tenants for current user {UserId}", userId);
             return Ok(tenants);
         }
         catch (UnauthorizedAccessException ex)
@@ -379,8 +379,7 @@ public class UserController : ControllerBase
             var userId = _userHelper.GetCurrentUserId();
             var tenantId = _tenantHelper.GetTenantId();
             var sites = await _userService.GetUserSites(userId, tenantId);
-            _logger.LogInformation("Retrieved {SiteCount} sites for current user {UserId} in tenant {TenantId}", 
-                sites.Count(), userId, tenantId);
+            _logger.LogInformation("Retrieved sites for current user {UserId} in tenant {TenantId}", userId, tenantId);
             return Ok(sites);
         }
         catch (UnauthorizedAccessException ex)
@@ -600,8 +599,7 @@ public class UserController : ControllerBase
         {
             var tenantId = _tenantHelper.GetTenantId();
             var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Tenant, tenantId);
-            _logger.LogInformation("Retrieved {InvitationCount} pending tenant invitations for tenant {TenantId}", 
-                invitations.Count(), tenantId);
+            _logger.LogInformation("Retrieved pending tenant invitations for tenant {TenantId}", tenantId);
             return Ok(invitations);
         }
         catch (Exception ex)
@@ -622,8 +620,7 @@ public class UserController : ControllerBase
         {
             var tenantId = _tenantHelper.GetTenantId();
             var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Site, tenantId, siteId);
-            _logger.LogInformation("Retrieved {InvitationCount} pending site invitations for site {SiteId} in tenant {TenantId}", 
-                invitations.Count(), siteId, tenantId);
+            _logger.LogInformation("Retrieved pending site invitations for site {SiteId} in tenant {TenantId}", siteId, tenantId);
             return Ok(invitations);
         }
         catch (Exception ex)
@@ -642,7 +639,7 @@ public class UserController : ControllerBase
         try
         {
             var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Internal);
-            _logger.LogInformation("Retrieved {InvitationCount} pending internal invitations", invitations.Count());
+            _logger.LogInformation("Retrieved pending internal invitations successfully");
             return Ok(invitations);
         }
         catch (Exception ex)
