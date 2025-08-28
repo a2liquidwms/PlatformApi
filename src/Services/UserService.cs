@@ -48,6 +48,8 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsers(Guid tenantId)
     {
+        _logger.LogDebug("Getting tenant users for tenant {TenantId}", tenantId);
+        
         // Get all users with tenant-scoped roles for this tenant
         var usersWithRoles = await _context.UserRoles
             .Where(ur => ur.TenantId == tenantId && ur.Scope == RoleScope.Tenant)
@@ -71,11 +73,14 @@ public class UserService : IUserService
             });
         }
 
+        _logger.LogDebug("Found {UserCount} users with tenant roles for tenant {TenantId}", result.Count, tenantId);
         return result;
     }
 
     public async Task<IEnumerable<SiteUserWithRolesDto>> GetSiteUsers(Guid siteId)
     {
+        _logger.LogDebug("Getting site users for site {SiteId}", siteId);
+        
         // Get all users with site-scoped roles for this site
         var usersWithRoles = await _context.UserRoles
             .Where(ur => ur.SiteId == siteId && ur.Scope == RoleScope.Site)
@@ -100,11 +105,14 @@ public class UserService : IUserService
             });
         }
 
+        _logger.LogDebug("Found {UserCount} users with site roles for site {SiteId}", result.Count, siteId);
         return result;
     }
 
     public async Task<IEnumerable<InternalUserWithRolesDto>> GetInternalUsers()
     {
+        _logger.LogDebug("Getting internal users");
+        
         var usersWithRoles = await _context.UserRoles
             .Where(ur => ur.Scope == RoleScope.Internal)
             .Include(ur => ur.User)
@@ -123,6 +131,7 @@ public class UserService : IUserService
             })
             .ToListAsync();
 
+        _logger.LogDebug("Found {UserCount} internal users", usersWithRoles.Count);
         return usersWithRoles;
     }
 
@@ -131,11 +140,15 @@ public class UserService : IUserService
 
     public async Task<bool> AddUserToRole(AddUserToRoleDto dto, RoleScope expectedScope)
     {
+        _logger.LogDebug("Adding user {Email} to {Scope} role {RoleId} with context tenant {TenantId}, site {SiteId}", 
+            dto.Email, expectedScope, dto.RoleId, dto.TenantId, dto.SiteId);
+            
         var user = await GetUserByEmail(dto.Email);
         
         // If user doesn't exist, create a placeholder user
         if (user == null)
         {
+            _logger.LogDebug("User {Email} not found, creating placeholder user", dto.Email);
             user = await CreatePlaceholderUserAsync(dto.Email);
         }
 
@@ -146,7 +159,6 @@ public class UserService : IUserService
 
         // Ensure the DTO scope matches expected scope
         if (dto.Scope != expectedScope) throw new InvalidDataException($"DTO scope must be {expectedScope}");
-
 
         // Check if assignment already exists
         var existingAssignment = await _context.UserRoles
@@ -174,18 +186,26 @@ public class UserService : IUserService
         if (expectedScope == RoleScope.Tenant)
         {
             await _cache.InvalidateCachedUserTenantsAsync(user.Id);
+            _logger.LogInformation("Invalidated cached user tenants for user {UserId} after adding tenant role", user.Id);
         }
         else if (expectedScope == RoleScope.Site && dto.TenantId.HasValue)
         {
             await _cache.InvalidateCachedUserSitesAsync(user.Id, dto.TenantId.Value);
+            _logger.LogInformation("Invalidated cached user sites for user {UserId} in tenant {TenantId} after adding site role", 
+                user.Id, dto.TenantId.Value);
         }
         
+        _logger.LogInformation("Successfully added user {UserId} ({Email}) to {Scope} role {RoleName} with context tenant {TenantId}, site {SiteId}", 
+            user.Id, dto.Email, expectedScope, role.Name, dto.TenantId, dto.SiteId);
         return true;
     }
 
 
     public async Task RemoveUserFromRole(RemoveUserFromRoleDto dto, RoleScope expectedScope)
     {
+        _logger.LogDebug("Removing user {Email} from {Scope} role {RoleId} with context tenant {TenantId}, site {SiteId}", 
+            dto.Email, expectedScope, dto.RoleId, dto.TenantId, dto.SiteId);
+            
         var user = await GetUserByEmail(dto.Email);
         if (user == null)
             throw new NotFoundException($"User with email {dto.Email} not found");
@@ -219,11 +239,17 @@ public class UserService : IUserService
         if (expectedScope == RoleScope.Tenant)
         {
             await _cache.InvalidateCachedUserTenantsAsync(user.Id);
+            _logger.LogInformation("Invalidated cached user tenants for user {UserId} after removing tenant role", user.Id);
         }
         else if (expectedScope == RoleScope.Site && dto.TenantId.HasValue)
         {
             await _cache.InvalidateCachedUserSitesAsync(user.Id, dto.TenantId.Value);
+            _logger.LogInformation("Invalidated cached user sites for user {UserId} in tenant {TenantId} after removing site role", 
+                user.Id, dto.TenantId.Value);
         }
+        
+        _logger.LogInformation("Successfully removed user {UserId} ({Email}) from {Scope} role {RoleName} with context tenant {TenantId}, site {SiteId}", 
+            user.Id, dto.Email, expectedScope, role.Name, dto.TenantId, dto.SiteId);
     }
 
     private async Task<AuthUser?> GetUserByEmail(string email)
@@ -255,10 +281,16 @@ public class UserService : IUserService
 
     public async Task<UserLookupDto?> GetUserByUserName(string userName)
     {
+        _logger.LogDebug("Looking up user by username: {UserName}", userName);
+        
         var user = await _userManager.FindByNameAsync(userName);
         if (user == null)
+        {
+            _logger.LogDebug("User not found for username: {UserName}", userName);
             return null;
+        }
 
+        _logger.LogDebug("Found user {Email} for username: {UserName}", user.Email, userName);
         return new UserLookupDto
         {
             UserName = user.UserName!,
@@ -330,11 +362,11 @@ public class UserService : IUserService
         var cachedTenants = await _cache.GetCachedUserTenantsAsync(userId);
         if (cachedTenants != null)
         {
-            _logger.LogDebug("Cache hit for user tenants: {UserId}", userId);
+            _logger.LogInformation("Cache hit for user tenants: {UserId}", userId);
             return cachedTenants;
         }
 
-        _logger.LogDebug("Cache miss for user tenants, querying database: {UserId}", userId);
+        _logger.LogInformation("Cache miss for user tenants, querying database: {UserId}", userId);
         
         // Get all tenants where user has tenant-scoped roles
         var userTenants = await _context.UserRoles
@@ -352,7 +384,7 @@ public class UserService : IUserService
 
         // Cache the results for regular users
         await _cache.SetCachedUserTenantsAsync(userId, userTenants);
-        _logger.LogDebug("Cached {TenantCount} tenants for user {UserId}", userTenants.Count(), userId);
+        _logger.LogInformation("Cached {TenantCount} tenants for user {UserId}", userTenants.Count(), userId);
             
         return userTenants;
     }
@@ -406,11 +438,11 @@ public class UserService : IUserService
         var cachedSites = await _cache.GetCachedUserSitesAsync(userId, tenantId);
         if (cachedSites != null)
         {
-            _logger.LogDebug("Cache hit for user sites: {UserId}, tenant {TenantId}", userId, tenantId);
+            _logger.LogInformation("Cache hit for user sites: {UserId}, tenant {TenantId}", userId, tenantId);
             return cachedSites;
         }
 
-        _logger.LogDebug("Cache miss for user sites, querying database: {UserId}, tenant {TenantId}", userId, tenantId);
+        _logger.LogInformation("Cache miss for user sites, querying database: {UserId}, tenant {TenantId}", userId, tenantId);
         
         // Get all sites where user has site-scoped roles within the specified tenant (site must be active)
         var siteDtos = await _context.UserRoles
@@ -430,7 +462,7 @@ public class UserService : IUserService
 
         // Cache the results for regular users
         await _cache.SetCachedUserSitesAsync(userId, tenantId, siteDtos);
-        _logger.LogDebug("Cached {SiteCount} sites for user {UserId}, tenant {TenantId}", siteDtos.Count, userId, tenantId);
+        _logger.LogInformation("Cached {SiteCount} sites for user {UserId}, tenant {TenantId}", siteDtos.Count, userId, tenantId);
             
         return siteDtos;
     }
@@ -494,6 +526,9 @@ public class UserService : IUserService
     // User invitation methods
     public async Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, RoleScope expectedScope, string invitedByUserId)
     {
+        _logger.LogDebug("Inviting user {Email} to {Scope} role {RoleId} with context tenant {TenantId}, site {SiteId} by user {InvitedByUserId}", 
+            request.Email, expectedScope, request.RoleId, request.TenantId, request.SiteId, invitedByUserId);
+            
         // Validate request scope matches expected scope
         if (request.Scope != expectedScope)
         {
@@ -528,6 +563,8 @@ public class UserService : IUserService
         if (user != null && !string.IsNullOrEmpty(user.PasswordHash))
         {
             // User already exists and has password - role was just added, no invitation needed
+            _logger.LogInformation("User {Email} already exists and has password - role assigned directly for {Scope} role {RoleId}", 
+                request.Email, expectedScope, request.RoleId);
             return new InvitationResponse
             {
                 Success = true,
@@ -547,6 +584,8 @@ public class UserService : IUserService
 
         if (existingInvitation != null)
         {
+            _logger.LogWarning("User {Email} already has a pending invitation for {Scope} scope with context tenant {TenantId}, site {SiteId}", 
+                request.Email, request.Scope, request.TenantId, request.SiteId);
             return new InvitationResponse
             {
                 Success = false,
@@ -576,6 +615,9 @@ public class UserService : IUserService
         _context.UserInvitations.Add(invitation);
         await _uow.CompleteAsync();
         
+        _logger.LogInformation("Created invitation {InvitationId} for user {Email} to {Scope} role {RoleId} with context tenant {TenantId}, site {SiteId}", 
+            invitation.Id, request.Email, request.Scope, request.RoleId, request.TenantId, request.SiteId);
+        
         // Send invitation email
         try
         {
@@ -590,16 +632,24 @@ public class UserService : IUserService
             
             if (!emailSent)
             {
-                _logger.LogWarning("Failed to send invitation email to {Email} for scope {Scope}", 
-                    request.Email, request.Scope);
+                _logger.LogWarning("Failed to send invitation email to {Email} for scope {Scope} with invitation {InvitationId}", 
+                    request.Email, request.Scope, invitation.Id);
+            }
+            else
+            {
+                _logger.LogInformation("Successfully sent invitation email to {Email} for invitation {InvitationId}", 
+                    request.Email, invitation.Id);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending invitation email to {Email} for scope {Scope}", 
-                request.Email, request.Scope);
+            _logger.LogError(ex, "Error sending invitation email to {Email} for scope {Scope} with invitation {InvitationId}", 
+                request.Email, request.Scope, invitation.Id);
         }
 
+        _logger.LogInformation("Invitation process completed successfully for user {Email} with invitation {InvitationId}", 
+            request.Email, invitation.Id);
+        
         return new InvitationResponse
         {
             Success = true,
@@ -619,6 +669,9 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(RoleScope scope, Guid? tenantId = null, Guid? siteId = null)
     {
+        _logger.LogDebug("Getting pending {Scope} invitations with context tenant {TenantId}, site {SiteId}", 
+            scope, tenantId, siteId);
+            
         var query = _context.UserInvitations
             .Where(ui => !ui.IsUsed && ui.ExpiresAt > DateTime.UtcNow);
 
@@ -630,13 +683,18 @@ public class UserService : IUserService
             _ => throw new InvalidDataException($"Invalid scope: {scope}")
         };
 
-        return await query
+        var invitations = await query
             .OrderByDescending(ui => ui.CreateDate)
             .ToListAsync();
+            
+        _logger.LogDebug("Found {InvitationCount} pending {Scope} invitations", invitations.Count, scope);
+        return invitations;
     }
 
     public async Task DeleteInvitationAsync(string email)
     {
+        _logger.LogDebug("Attempting to delete invitation for email {Email}", email);
+        
         // Find unused invitation by email
         var invitation = await _context.UserInvitations
             .FirstOrDefaultAsync(ui => ui.Email == email && 
@@ -645,6 +703,7 @@ public class UserService : IUserService
 
         if (invitation == null)
         {
+            _logger.LogWarning("No open invitation found for email {Email}", email);
             throw new NotFoundException("Open invitation does not exist");
         }
 
@@ -656,21 +715,26 @@ public class UserService : IUserService
             // Check if user email is confirmed
             if (user.EmailConfirmed)
             {
+                _logger.LogWarning("Cannot delete invitation for email {Email} - user already accepted invite", email);
                 throw new InvalidDataException("User already accepted invite");
             }
 
             // User exists but email not confirmed - remove all user roles and delete user
+            _logger.LogInformation("Removing unconfirmed user {UserId} and their roles for email {Email}", user.Id, email);
             var userRoles = await _context.UserRoles
                 .Where(ur => ur.UserId == user.Id)
                 .ToListAsync();
 
             _context.UserRoles.RemoveRange(userRoles);
+            _logger.LogDebug("Removed {RoleCount} role assignments for user {UserId}", userRoles.Count, user.Id);
 
             await _userManager.DeleteAsync(user);
+            _logger.LogInformation("Deleted unconfirmed user account {UserId} for email {Email}", user.Id, email);
         }
 
         // Remove the invitation
         _context.UserInvitations.Remove(invitation);
+        _logger.LogInformation("Deleted invitation {InvitationId} for email {Email}", invitation.Id, email);
         
         await _uow.CompleteAsync();
     }

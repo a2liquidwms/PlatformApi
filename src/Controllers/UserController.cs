@@ -50,6 +50,7 @@ public class UserController : ControllerBase
         try
         {
             var users = await _userService.GetTenantUsers(tenantId);
+            _logger.LogInformation("Retrieved {UserCount} tenant users for tenant {TenantId}", users.Count(), tenantId);
             return Ok(users);
         }
         catch (Exception ex)
@@ -67,6 +68,7 @@ public class UserController : ControllerBase
         try
         {
             var users = await _userService.GetSiteUsers(siteId);
+            _logger.LogInformation("Retrieved {UserCount} site users for site {SiteId}", users.Count(), siteId);
             return Ok(users);
         }
         catch (Exception ex)
@@ -84,6 +86,7 @@ public class UserController : ControllerBase
         try
         {
             var users = await _userService.GetInternalUsers();
+            _logger.LogInformation("Retrieved {UserCount} internal users", users.Count());
             return Ok(users);
         }
         catch (Exception ex)
@@ -115,19 +118,24 @@ public class UserController : ControllerBase
             };
             
             await _userService.AddUserToRole(addUserToRoleDto, RoleScope.Site);
+            _logger.LogInformation("User {Email} added to site role {RoleId} for site {SiteId} in tenant {TenantId}", 
+                dto.Email, dto.RoleId, dto.SiteId, tenantId);
             return Ok(new { Message = "User added to site role successfully" });
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to add user {Email} to site role - resource not found: {Message}", dto.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to add user {Email} to site role - invalid data: {Message}", dto.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error adding user to site role");
+            _logger.LogError(ex, "Error adding user {Email} to site role {RoleId} for site {SiteId}", 
+                dto.Email, dto.RoleId, dto.SiteId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -150,19 +158,25 @@ public class UserController : ControllerBase
             };
             
             await _userService.AddUserToRole(addUserToRoleDto, RoleScope.Tenant);
+            _logger.LogInformation("User {Email} added to tenant role {RoleId} for tenant {TenantId}", 
+                dto.Email, dto.RoleId, tenantId);
             return Ok(new { Message = "User added to tenant role successfully" });
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to add user {Email} to tenant role - resource not found: {Message}", dto.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to add user {Email} to tenant role - invalid data: {Message}", dto.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error adding user to tenant role");
+            var tenantId = _tenantHelper.GetTenantId();
+            _logger.LogError(ex, "Error adding user {Email} to tenant role {RoleId} for tenant {TenantId}", 
+                dto.Email, dto.RoleId, tenantId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -182,19 +196,22 @@ public class UserController : ControllerBase
             };
             
             await _userService.AddUserToRole(addUserToRoleDto, RoleScope.Internal);
+            _logger.LogInformation("User {Email} added to internal role {RoleId}", dto.Email, dto.RoleId);
             return Ok(new { Message = "User added to internal role successfully" });
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to add user {Email} to internal role - resource not found: {Message}", dto.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to add user {Email} to internal role - invalid data: {Message}", dto.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error adding user to internal role");
+            _logger.LogError(ex, "Error adding user {Email} to internal role {RoleId}", dto.Email, dto.RoleId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -219,19 +236,25 @@ public class UserController : ControllerBase
             };
             
             await _userService.RemoveUserFromRole(removeUserFromRoleDto, RoleScope.Tenant);
+            _logger.LogInformation("User {Email} removed from tenant role {RoleId} for tenant {TenantId}", 
+                dto.Email, dto.RoleId, tenantId);
             return Ok(new { Message = "User removed from tenant role successfully" });
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to remove user {Email} from tenant role - resource not found: {Message}", dto.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to remove user {Email} from tenant role - invalid data: {Message}", dto.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error removing user from tenant role");
+            var tenantId = _tenantHelper.GetTenantId();
+            _logger.LogError(ex, "Error removing user {Email} from tenant role {RoleId} for tenant {TenantId}", 
+                dto.Email, dto.RoleId, tenantId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -256,19 +279,24 @@ public class UserController : ControllerBase
             };
             
             await _userService.RemoveUserFromRole(removeUserFromRoleDto, RoleScope.Site);
+            _logger.LogInformation("User {Email} removed from site role {RoleId} for site {SiteId} in tenant {TenantId}", 
+                dto.Email, dto.RoleId, dto.SiteId, tenantId);
             return Ok(new { Message = "User removed from site role successfully" });
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to remove user {Email} from site role - resource not found: {Message}", dto.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to remove user {Email} from site role - invalid data: {Message}", dto.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error removing user from site role");
+            _logger.LogError(ex, "Error removing user {Email} from site role {RoleId} for site {SiteId}", 
+                dto.Email, dto.RoleId, dto.SiteId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -291,19 +319,22 @@ public class UserController : ControllerBase
             };
             
             await _userService.RemoveUserFromRole(removeUserFromRoleDto, RoleScope.Internal);
+            _logger.LogInformation("User {Email} removed from internal role {RoleId}", dto.Email, dto.RoleId);
             return Ok(new { Message = "User removed from internal role successfully" });
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to remove user {Email} from internal role - resource not found: {Message}", dto.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to remove user {Email} from internal role - invalid data: {Message}", dto.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error removing user from internal role");
+            _logger.LogError(ex, "Error removing user {Email} from internal role {RoleId}", dto.Email, dto.RoleId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -318,19 +349,22 @@ public class UserController : ControllerBase
         {
             var userId = _userHelper.GetCurrentUserId();
             var tenants = await _userService.GetUserTenants(userId);
+            _logger.LogInformation("Retrieved {TenantCount} tenants for current user {UserId}", tenants.Count(), userId);
             return Ok(tenants);
         }
         catch (UnauthorizedAccessException ex)
         {
+            _logger.LogWarning("Unauthorized access to user tenants: {Message}", ex.Message);
             return Unauthorized(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Invalid data for user tenants request: {Message}", ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting current user's tenants");
+            _logger.LogError(ex, "Error getting current user's tenants for user {UserId}", _userHelper.GetCurrentUserId());
             return StatusCode(500, "Internal server error");
         }
     }
@@ -345,20 +379,25 @@ public class UserController : ControllerBase
             var userId = _userHelper.GetCurrentUserId();
             var tenantId = _tenantHelper.GetTenantId();
             var sites = await _userService.GetUserSites(userId, tenantId);
+            _logger.LogInformation("Retrieved {SiteCount} sites for current user {UserId} in tenant {TenantId}", 
+                sites.Count(), userId, tenantId);
             return Ok(sites);
         }
         catch (UnauthorizedAccessException ex)
         {
+            _logger.LogWarning("Unauthorized access to user sites: {Message}", ex.Message);
             return Unauthorized(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Invalid data for user sites request: {Message}", ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
             var tenantId = _tenantHelper.GetTenantId();
-            _logger.LogError(ex, "Error getting current user's sites for tenant {TenantId}", tenantId);
+            _logger.LogError(ex, "Error getting current user's sites for user {UserId} in tenant {TenantId}", 
+                _userHelper.GetCurrentUserId(), tenantId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -375,9 +414,11 @@ public class UserController : ControllerBase
             var user = await _userService.GetUserByUserName(userName);
             if (user == null)
             {
+                _logger.LogInformation("User lookup by username {UserName} - user not found", userName);
                 return NotFound("User not found");
             }
             
+            _logger.LogInformation("User lookup by username {UserName} successful - found {Email}", userName, user.Email);
             return Ok(user);
         }
         catch (Exception ex)
@@ -412,24 +453,32 @@ public class UserController : ControllerBase
             
             if (response.Success)
             {
+                _logger.LogInformation("User {Email} successfully invited to tenant {TenantId} with role {RoleId}", 
+                    request.Email, tenantId, request.RoleId);
                 return Ok(response);
             }
             else
             {
+                _logger.LogWarning("Failed to invite user {Email} to tenant {TenantId}: {Message}", 
+                    request.Email, tenantId, response.Message);
                 return BadRequest(response);
             }
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to invite user {Email} to tenant - resource not found: {Message}", request.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to invite user {Email} to tenant - invalid data: {Message}", request.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error inviting user {Email} to tenant", request.Email);
+            var tenantId = _tenantHelper.GetTenantId();
+            _logger.LogError(ex, "Error inviting user {Email} to tenant {TenantId} with role {RoleId}", 
+                request.Email, tenantId, request.RoleId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -459,24 +508,31 @@ public class UserController : ControllerBase
             
             if (response.Success)
             {
+                _logger.LogInformation("User {Email} successfully invited to site {SiteId} in tenant {TenantId} with role {RoleId}", 
+                    request.Email, request.SiteId, tenantId, request.RoleId);
                 return Ok(response);
             }
             else
             {
+                _logger.LogWarning("Failed to invite user {Email} to site {SiteId}: {Message}", 
+                    request.Email, request.SiteId, response.Message);
                 return BadRequest(response);
             }
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to invite user {Email} to site - resource not found: {Message}", request.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to invite user {Email} to site - invalid data: {Message}", request.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error inviting user {Email} to site", request.Email);
+            _logger.LogError(ex, "Error inviting user {Email} to site {SiteId} with role {RoleId}", 
+                request.Email, request.SiteId, request.RoleId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -504,24 +560,31 @@ public class UserController : ControllerBase
             
             if (response.Success)
             {
+                _logger.LogInformation("User {Email} successfully invited to internal role {RoleId}", 
+                    request.Email, request.RoleId);
                 return Ok(response);
             }
             else
             {
+                _logger.LogWarning("Failed to invite user {Email} to internal role: {Message}", 
+                    request.Email, response.Message);
                 return BadRequest(response);
             }
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to invite user {Email} to internal role - resource not found: {Message}", request.Email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to invite user {Email} to internal role - invalid data: {Message}", request.Email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error inviting user {Email} to internal role", request.Email);
+            _logger.LogError(ex, "Error inviting user {Email} to internal role {RoleId}", 
+                request.Email, request.RoleId);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -537,12 +600,14 @@ public class UserController : ControllerBase
         {
             var tenantId = _tenantHelper.GetTenantId();
             var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Tenant, tenantId);
-            
+            _logger.LogInformation("Retrieved {InvitationCount} pending tenant invitations for tenant {TenantId}", 
+                invitations.Count(), tenantId);
             return Ok(invitations);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting pending tenant invitations");
+            _logger.LogError(ex, "Error getting pending tenant invitations for tenant {TenantId}", 
+                _tenantHelper.GetTenantId());
             return StatusCode(500, "Internal server error");
         }
     }
@@ -557,12 +622,14 @@ public class UserController : ControllerBase
         {
             var tenantId = _tenantHelper.GetTenantId();
             var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Site, tenantId, siteId);
-            
+            _logger.LogInformation("Retrieved {InvitationCount} pending site invitations for site {SiteId} in tenant {TenantId}", 
+                invitations.Count(), siteId, tenantId);
             return Ok(invitations);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting pending site invitations for site {SiteId}", siteId);
+            _logger.LogError(ex, "Error getting pending site invitations for site {SiteId} in tenant {TenantId}", 
+                siteId, _tenantHelper.GetTenantId());
             return StatusCode(500, "Internal server error");
         }
     }
@@ -575,7 +642,7 @@ public class UserController : ControllerBase
         try
         {
             var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Internal);
-            
+            _logger.LogInformation("Retrieved {InvitationCount} pending internal invitations", invitations.Count());
             return Ok(invitations);
         }
         catch (Exception ex)
@@ -593,14 +660,17 @@ public class UserController : ControllerBase
         try
         {
             await _userService.DeleteInvitationAsync(email);
+            _logger.LogInformation("Invitation deleted successfully for email {Email}", email);
             return Ok(new { Message = "Invitation deleted successfully" });
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Failed to delete invitation for email {Email} - not found: {Message}", email, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Failed to delete invitation for email {Email} - invalid data: {Message}", email, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
