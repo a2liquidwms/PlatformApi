@@ -71,8 +71,14 @@ public class AuthController : ControllerBase
         var result = await _authService.Register(user, request.Password, null, tenantNullable, null);
 
         if (!result.Succeeded)
+        {
+            _logger.LogWarning("User registration failed for {Email} with tenant {TenantId}. Errors: {Errors}", 
+                request.Email, tenantNullable, string.Join(", ", result.Errors.Select(e => e.Description)));
             return BadRequest(result.Errors);
+        }
 
+        _logger.LogInformation("User {Email} registered successfully with tenant {TenantId}", 
+            request.Email, tenantNullable);
         return Ok(new { Message = "User registered successfully" });
     }
 
@@ -83,10 +89,14 @@ public class AuthController : ControllerBase
         try
         {
             var token = await _authService.Login(request.Email, request.Password, request.TenantId, request.SiteId);
+            _logger.LogInformation("User {Email} logged in successfully with tenant {TenantId} and site {SiteId}", 
+                request.Email, request.TenantId, request.SiteId);
             return HandleTokenResponse(token);
         }
         catch (Exception e)
         {
+            _logger.LogWarning("Login failed for user {Email} with tenant {TenantId} and site {SiteId}. Error: {Error}", 
+                request.Email, request.TenantId, request.SiteId, e.Message);
             return BadRequest(e.Message);
         }
     }
@@ -206,9 +216,13 @@ public class AuthController : ControllerBase
 
             if (result)
             {
+                _logger.LogInformation("Email confirmed successfully for user {UserId} with tenant {TenantId}", 
+                    request.UserId, request.TenantId);
                 return Ok(new { Message = "Email confirmed successfully! You can now log in." });
             }
 
+            _logger.LogWarning("Email confirmation failed for user {UserId} with tenant {TenantId} - invalid or expired token", 
+                request.UserId, request.TenantId);
             return BadRequest("Invalid or expired email confirmation token.");
         }
         catch (Exception ex)
@@ -228,6 +242,8 @@ public class AuthController : ControllerBase
 
             if (result)
             {
+                _logger.LogInformation("Confirmation email sent successfully to {Email} with tenant {TenantId}", 
+                    request.Email, request.TenantId);
                 return Ok(new { Message = "If the email address is registered, a confirmation email has been sent." });
             }
 
@@ -249,6 +265,8 @@ public class AuthController : ControllerBase
         {
             await _authService.SendPasswordResetAsync(request.Email, null, request.TenantId);
 
+            _logger.LogInformation("Password reset email process completed for {Email} with tenant {TenantId}", 
+                request.Email, request.TenantId);
             // Always return success to prevent email enumeration
             return Ok(new { Message = "If the email address is registered, a password reset email has been sent." });
         }
@@ -270,9 +288,13 @@ public class AuthController : ControllerBase
 
             if (result)
             {
+                _logger.LogInformation("Password reset completed successfully for user {UserId} with tenant {TenantId}", 
+                    request.UserId, request.TenantId);
                 return Ok(new { Message = "Password reset successfully! You can now log in with your new password." });
             }
 
+            _logger.LogWarning("Password reset failed for user {UserId} with tenant {TenantId} - invalid or expired token", 
+                request.UserId, request.TenantId);
             return BadRequest("Invalid or expired password reset token.");
         }
         catch (Exception ex)
@@ -333,14 +355,18 @@ public class AuthController : ControllerBase
             
             if (string.IsNullOrEmpty(refreshToken))
             {
+                _logger.LogWarning("Token refresh attempted without refresh token");
                 return BadRequest("Refresh token is required either in cookie or request body");
             }
             
             var tokenBundle = await _authService.RefreshToken(refreshToken);
+            _logger.LogInformation("Token refreshed successfully for tenant {TenantId} and site {SiteId}", 
+                tokenBundle.TenantId, tokenBundle.SiteId);
             return HandleTokenResponse(tokenBundle);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogWarning("Token refresh failed: {Error}", ex.Message);
             // Clear the refresh token cookie if refresh failed
             this.ClearRefreshTokenCookie(_configuration);
             return Unauthorized("Invalid or Expired token");
@@ -440,14 +466,20 @@ public class AuthController : ControllerBase
         {
             var userId = _userHelper.GetCurrentUserId();
             var tokenBundle = await _authService.SwitchTenant(userId, request.TenantId);
+            _logger.LogInformation("User {UserId} switched to tenant {TenantId} successfully", 
+                userId, request.TenantId);
             return HandleTokenResponse(tokenBundle);
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Tenant switch failed for user {UserId} to tenant {TenantId} - not found: {Error}", 
+                _userHelper.GetCurrentUserId(), request.TenantId, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Tenant switch failed for user {UserId} to tenant {TenantId} - access denied: {Error}", 
+                _userHelper.GetCurrentUserId(), request.TenantId, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
@@ -465,14 +497,20 @@ public class AuthController : ControllerBase
         {
             var userId = _userHelper.GetCurrentUserId();
             var tokenBundle = await _authService.SwitchSite(userId, request.SiteId);
+            _logger.LogInformation("User {UserId} switched to site {SiteId} successfully", 
+                userId, request.SiteId);
             return HandleTokenResponse(tokenBundle);
         }
         catch (NotFoundException ex)
         {
+            _logger.LogWarning("Site switch failed for user {UserId} to site {SiteId} - not found: {Error}", 
+                _userHelper.GetCurrentUserId(), request.SiteId, ex.Message);
             return NotFound(ex.Message);
         }
         catch (InvalidDataException ex)
         {
+            _logger.LogWarning("Site switch failed for user {UserId} to site {SiteId} - access denied: {Error}", 
+                _userHelper.GetCurrentUserId(), request.SiteId, ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)

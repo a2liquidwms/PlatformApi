@@ -156,26 +156,28 @@ void SetLogging(WebApplicationBuilder webApplicationBuilder)
     var efVerboseLogging = webApplicationBuilder.Configuration.GetValue<bool>("LOGGING_EF_VERBOSE", false);
     if (!efVerboseLogging)
     {
+        // Filter out all EF Core noise unless explicitly enabled
         webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
         webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Query", LogLevel.Warning);
+        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Connection", LogLevel.Warning);
+        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Infrastructure", LogLevel.Warning);
+        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.ChangeTracking", LogLevel.Warning);
+        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Update", LogLevel.Warning);
     }
-    var logLevel = webApplicationBuilder.Configuration.GetValue<string>("LOGGING_LEVEL", "Information");
+    var logLevel = webApplicationBuilder.Configuration.GetValue<string>("LOGGING_LEVEL", "Debug");
     if (Enum.TryParse<LogLevel>(logLevel, out var parsedLogLevel))
     {
         webApplicationBuilder.Logging.SetMinimumLevel(parsedLogLevel);
     }
     
-    // Reduce Microsoft framework noise - filter out HTTP request lifecycle chatter
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning); // Request starting/finished
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker", LogLevel.Warning); // Route matched, executing action details
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Mvc.Infrastructure.ObjectResultExecutor", LogLevel.Warning); // Executing ObjectResult
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Cors", LogLevel.Warning); // CORS policy execution successful
-
-// Keep endpoint execution - useful to see which APIs are being called
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Routing.EndpointMiddleware", LogLevel.Information);
-
-// Keep security-related logs at Information for monitoring
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication", LogLevel.Information);
-    builder.Logging.AddFilter("Microsoft.AspNetCore.Authorization", LogLevel.Information);
+    // Filter out all Microsoft framework debug noise - keeps application debug logs clean
+    builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+    
+    // Override specific Microsoft loggers that we want to see at Information level
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Routing.EndpointMiddleware", LogLevel.Information); // Useful to see which APIs are called
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication", LogLevel.Information); // Security monitoring  
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Authorization", LogLevel.Information); // Security monitoring
+    builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Information); // Application startup/shutdown info
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Information); // Hosting startup assembly loading
 
 }

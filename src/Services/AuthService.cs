@@ -81,15 +81,24 @@ public class AuthService : IAuthService
     {
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null)
+        {
+            _logger.LogWarning("Login attempt failed - user not found for email: {Email}", email);
             throw new InvalidDataException("Invalid login");
+        }
 
         // Check if email is confirmed
         if (!user.EmailConfirmed)
+        {
+            _logger.LogWarning("Login attempt failed - email not confirmed for user: {UserId} ({Email})", user.Id, email);
             throw new InvalidDataException("Email not confirmed. Please check your email for the confirmation link.");
+        }
 
         var result = await _signInManager.CheckPasswordSignInAsync(user, password, false);
         if (!result.Succeeded)
+        {
+            _logger.LogWarning("Login attempt failed - invalid password for user: {UserId} ({Email})", user.Id, email);
             throw new InvalidDataException("Invalid login");
+        }
 
         if (tenantId != null)
         {
@@ -98,6 +107,7 @@ public class AuthService : IAuthService
 
         if (siteId != null && tenantId == null)
         {
+            _logger.LogWarning("Login attempt failed - site specified without tenant for user: {UserId} ({Email})", user.Id, email);
             throw new InvalidDataException("Cannot login to site without specifying tenant");
         }
 
@@ -110,6 +120,9 @@ public class AuthService : IAuthService
         (tenantId, siteId) = await AutoSelectTenantAndSite(user, tenantId, siteId);
 
         var token = await GenerateTokenBundle(user, tenantId, siteId);
+        
+        _logger.LogInformation("User {UserId} ({Email}) logged in successfully with tenant {TenantId} and site {SiteId}", 
+            user.Id, email, tenantId, siteId);
 
         return token;
     }
@@ -155,6 +168,8 @@ public class AuthService : IAuthService
         
         if (!hasAccess)
         {
+            _logger.LogWarning("Tenant access denied for user {UserId} ({Email}) to tenant {TenantId}", 
+                user.Id, user.Email, tenantId);
             throw new InvalidDataException("Tenant access denied");
         }
     }
@@ -166,6 +181,8 @@ public class AuthService : IAuthService
         
         if (!hasAccess)
         {
+            _logger.LogWarning("Site access denied for user {UserId} ({Email}) to site {SiteId} in tenant {TenantId}", 
+                user.Id, user.Email, siteId, tenantId);
             throw new InvalidDataException("Site Access denied");
         }
     }
@@ -273,9 +290,15 @@ public class AuthService : IAuthService
         var oldRefreshToken = await _context.RefreshTokens
             .FirstOrDefaultAsync(rt => rt.Token == refreshToken.Trim() && !rt.IsRevoked);
         
-        if (oldRefreshToken == null || oldRefreshToken.Expires < DateTime.UtcNow)
+        if (oldRefreshToken == null)
         {
-            _logger.LogError("Refresh Token not found, revoked, or expired");
+            _logger.LogWarning("Refresh token not found or already revoked");
+            throw new UnauthorizedAccessException();
+        }
+        
+        if (oldRefreshToken.Expires < DateTime.UtcNow)
+        {
+            _logger.LogWarning("Refresh token expired for user {UserId}", oldRefreshToken.UserId);
             throw new UnauthorizedAccessException();
         }
         
@@ -283,7 +306,7 @@ public class AuthService : IAuthService
         var user = await _userManager.FindByIdAsync(oldRefreshToken.UserId.ToString());
         if (user == null)
         {
-            _logger.LogError("User not found for refresh token");
+            _logger.LogWarning("User {UserId} not found for refresh token", oldRefreshToken.UserId);
             throw new UnauthorizedAccessException();
         }
         
@@ -297,6 +320,9 @@ public class AuthService : IAuthService
 
         // Generate new access and refresh tokens
         var tokenBundle = await GenerateTokenBundle(user, oldRefreshToken.TenantId, oldRefreshToken.SiteId);
+        
+        _logger.LogInformation("Token refreshed successfully for user {UserId} ({Email}) with tenant {TenantId} and site {SiteId}", 
+            user.Id, user.Email, oldRefreshToken.TenantId, oldRefreshToken.SiteId);
 
         return tokenBundle;
     }
@@ -337,13 +363,26 @@ public class AuthService : IAuthService
 
         if (user.EmailConfirmed)
         {
-            _logger.LogInformation("Email already confirmed for user: {Email}", email);
+            _logger.LogInformation("Email already confirmed for user: {UserId} ({Email})", user.Id, email);
             return true; // Already confirmed
         }
 
         var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
         var emailContent = await _emailContentService.PrepareEmailConfirmationAsync(user.Email!, token, user.Id, user.UserName ?? user.Email!, tenantId, returnUrl);
-        return await _emailService.SendEmailAsync(emailContent);
+        var emailSent = await _emailService.SendEmailAsync(emailContent);
+        
+        if (emailSent)
+        {
+            _logger.LogInformation("Email confirmation sent successfully to user {UserId} ({Email}) with tenant {TenantId}", 
+                user.Id, email, tenantId);
+        }
+        else
+        {
+            _logger.LogError("Failed to send email confirmation to user {UserId} ({Email}) with tenant {TenantId}", 
+                user.Id, email, tenantId);
+        }
+        
+        return emailSent;
     }
 
     public async Task<bool> ConfirmEmailAsync(Guid userId, string token, string? subdomain = null, Guid? tenantId = null)
@@ -385,7 +424,20 @@ public class AuthService : IAuthService
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
         var emailContent = await _emailContentService.PreparePasswordResetAsync(user.Email!, token, user.Id, user.UserName ?? user.Email!, tenantId, returnUrl);
-        return await _emailService.SendEmailAsync(emailContent);
+        var emailSent = await _emailService.SendEmailAsync(emailContent);
+        
+        if (emailSent)
+        {
+            _logger.LogInformation("Password reset email sent successfully to user {UserId} ({Email}) with tenant {TenantId}", 
+                user.Id, email, tenantId);
+        }
+        else
+        {
+            _logger.LogError("Failed to send password reset email to user {UserId} ({Email}) with tenant {TenantId}", 
+                user.Id, email, tenantId);
+        }
+        
+        return emailSent;
     }
 
     public async Task<bool> ResetPasswordAsync(Guid userId, string token, string newPassword, string? subdomain = null, Guid? tenantId = null)
@@ -425,6 +477,9 @@ public class AuthService : IAuthService
             var tenant = await _tenantService.GetById(tenantId.Value);
             tenantSubdomain = tenant?.SubDomain;
         }
+
+        _logger.LogInformation("Token bundle generated for user {UserId} ({Email}) with tenant {TenantId}, site {SiteId}, expires at {ExpiresAt}", 
+            user.Id, user.Email, tenantId, siteId, tokenReturn.Expires);
 
         return new AuthTokenBundleWithRefresh()
         {
@@ -480,29 +535,38 @@ public class AuthService : IAuthService
             new(CommonConstants.ClaimUserId, user.Id.ToString())
         };
         allClaims.AddRange(defaultClaims);
+        _logger.LogDebug("Added standard JWT claims for user {UserId}: Sub, Email, Jti, UserId", user.Id);
 
         // Add tenant count claim for UI decision-making
         var tenantCount = await _userService.GetUserTenantCount(user.Id);
         allClaims.Add(new Claim(CommonConstants.TenantCountClaim, tenantCount.ToString()));
+        _logger.LogDebug("Added tenant count claim for user {UserId}: {TenantCount}", user.Id, tenantCount);
         
         // Add context claims (tenant/site)
         if (tenantId.HasValue)
         {
             allClaims.Add(new Claim(CommonConstants.ActiveTenantClaim, tenantId.Value.ToString()));
+            _logger.LogDebug("Added active tenant claim for user {UserId}: {TenantId}", user.Id, tenantId.Value);
             
             // Add site count for this tenant
             var siteCount = await _userService.GetUserSiteCount(user.Id, tenantId.Value);
             allClaims.Add(new Claim(CommonConstants.SiteCountClaim, siteCount.ToString()));
+            _logger.LogDebug("Added site count claim for user {UserId} in tenant {TenantId}: {SiteCount}", 
+                user.Id, tenantId.Value, siteCount);
         }
         
         if (siteId.HasValue)
         {
             allClaims.Add(new Claim(CommonConstants.ActiveSiteClaim, siteId.Value.ToString()));
+            _logger.LogDebug("Added active site claim for user {UserId}: {SiteId}", user.Id, siteId.Value);
         }
 
         // Get role claims based on context
         var roleClaims = await GetContextualRoleClaims(user, tenantId, siteId);
         allClaims.AddRange(roleClaims);
+
+        _logger.LogDebug("Generated {ClaimCount} total claims for user {UserId} with context tenant {TenantId}, site {SiteId}", 
+            allClaims.Count, user.Id, tenantId, siteId);
 
         return allClaims;
     }
@@ -601,6 +665,9 @@ public class AuthService : IAuthService
         var allRoleNames = allRoles.Select(r => r.Name).Distinct().ToArray();
         var roleJsonArray = JsonSerializer.Serialize(allRoleNames);
         roleClaims.Add(new Claim(CommonConstants.RolesClaim, roleJsonArray, JsonClaimValueTypes.JsonArray));
+        
+        _logger.LogDebug("Added role claims for user {UserId}: {Roles}", 
+            user.Id, string.Join(", ", allRoleNames));
 
         return roleClaims;
     }
