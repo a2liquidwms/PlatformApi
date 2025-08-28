@@ -137,7 +137,8 @@ public class EmailContentService : IEmailContentService
             
             // Generate invitation URL based on scope
             var encodedToken = HttpUtility.UrlEncode(token);
-            var invitationUrl = $"{branding.BaseUrl}/accept-invitation?token={encodedToken}";
+            var encodedEmail = HttpUtility.UrlEncode(email);
+            var invitationUrl = $"{branding.BaseUrl}/register-invitation?token={encodedToken}&email={encodedEmail}";
 
             EmailTemplateBase template;
             
