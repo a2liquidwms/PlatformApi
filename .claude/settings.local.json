@@ -9,7 +9,8 @@
       "Bash(rm:*)",
       "WebFetch(domain:learn.microsoft.com)",
       "WebFetch(domain:www.learnrazorpages.com)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(dotnet run)"
     ],
     "deny": []
   }

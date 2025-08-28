@@ -584,8 +584,7 @@ public class UserService : IUserService
                 invitationToken, 
                 request.Email, // Using email as userName for now, will be updated when user registers
                 request.Scope, 
-                request.TenantId, 
-                request.SiteId);
+                request.TenantId);
             
             var emailSent = await _emailService.SendEmailAsync(emailContent);
             

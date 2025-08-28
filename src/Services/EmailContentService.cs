@@ -145,17 +145,8 @@ public class EmailContentService : IEmailContentService
             switch (scope)
             {
                 case RoleScope.Tenant:
-                    template = new TenantInvitationTemplate(userName, invitationUrl);
-                    break;
                 case RoleScope.Site:
-                    // Get site name for site invitations
-                    string siteName = "Site";
-                    if (siteId.HasValue)
-                    {
-                        var site = await _context.Sites.FirstOrDefaultAsync(s => s.Id == siteId);
-                        siteName = site?.Name ?? "Site";
-                    }
-                    template = new SiteInvitationTemplate(userName, invitationUrl, siteName);
+                    template = new TenantInvitationTemplate(userName, invitationUrl);
                     break;
                 case RoleScope.Internal:
                     template = new InternalInvitationTemplate(userName, invitationUrl);

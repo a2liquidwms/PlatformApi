@@ -19,6 +19,8 @@ Env.Load();
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 
+SetLogging(builder);
+
 // Add services to the container.
 var connectionString = builder.Configuration["DBCONNECTION_AUTH"];
 builder.Services.AddDbContext<PlatformDbContext>(options =>
@@ -144,3 +146,36 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+void SetLogging(WebApplicationBuilder webApplicationBuilder)
+{
+    // Configure logging levels to reduce EF Core SQL query noise
+    webApplicationBuilder.Logging.ClearProviders();
+    webApplicationBuilder.Logging.AddConsole();
+
+    var efVerboseLogging = webApplicationBuilder.Configuration.GetValue<bool>("LOGGING_EF_VERBOSE", false);
+    if (!efVerboseLogging)
+    {
+        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
+        webApplicationBuilder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Query", LogLevel.Warning);
+    }
+    var logLevel = webApplicationBuilder.Configuration.GetValue<string>("LOGGING_LEVEL", "Information");
+    if (Enum.TryParse<LogLevel>(logLevel, out var parsedLogLevel))
+    {
+        webApplicationBuilder.Logging.SetMinimumLevel(parsedLogLevel);
+    }
+    
+    // Reduce Microsoft framework noise - filter out HTTP request lifecycle chatter
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning); // Request starting/finished
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker", LogLevel.Warning); // Route matched, executing action details
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Mvc.Infrastructure.ObjectResultExecutor", LogLevel.Warning); // Executing ObjectResult
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Cors", LogLevel.Warning); // CORS policy execution successful
+
+// Keep endpoint execution - useful to see which APIs are being called
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Routing.EndpointMiddleware", LogLevel.Information);
+
+// Keep security-related logs at Information for monitoring
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication", LogLevel.Information);
+    builder.Logging.AddFilter("Microsoft.AspNetCore.Authorization", LogLevel.Information);
+
+}
