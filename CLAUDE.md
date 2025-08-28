@@ -229,3 +229,162 @@ await _uow.CompleteAsync();
 
 ### Migration and Database Changes
 - If a migration is needed as part of change, I will run manually.  At end of prompt, just add "Migration is Needed", if there are db changes.  
+
+## Logging Guidelines
+
+This codebase follows structured logging practices with specific patterns for different scenarios and log levels.
+
+### Log Levels and Usage
+
+**Debug**: Important application details that may be needed for troubleshooting
+- JWT claims generation and validation details
+- Complex business logic flows and decision points
+- Data transformation and mapping operations
+- Debugging information for specific production issues
+
+**Information**: Default logging level for normal application operations
+- Successful authentication activities (login, registration, password reset)
+- CRUD operations completion
+- API endpoint calls and responses
+- User actions and state changes
+- System startup and configuration events
+
+**Warning**: Client errors (4xx) and failed operations that don't break the system
+- Failed authentication attempts (bad passwords, invalid tokens, expired sessions)
+- Validation failures and business rule violations
+- Missing or invalid request data
+- Authorization failures
+- Deprecated feature usage
+
+**Error**: System errors (5xx) and exceptions that affect functionality
+- Unhandled exceptions in controllers and services
+- Database connection failures
+- External service integration failures
+- Infrastructure and configuration errors
+
+**Critical**: System failures requiring immediate attention
+- Application startup failures
+- Security breaches or suspicious activities
+- Complete system outages
+
+### Structured Logging Patterns
+
+Use consistent structured logging with meaningful properties:
+
+```csharp
+// Good: Structured logging with context
+_logger.LogInformation("User {Email} logged in successfully with tenant {TenantId} and site {SiteId}", 
+    request.Email, request.TenantId, request.SiteId);
+
+// Good: Warning for failed attempts
+_logger.LogWarning("Login attempt failed - user not found for email: {Email}", email);
+
+// Good: Debug with detailed context
+_logger.LogDebug("Generated {ClaimCount} total claims for user {UserId} with context tenant {TenantId}, site {SiteId}", 
+    allClaims.Count, user.Id, tenantId, siteId);
+```
+
+**Key Properties to Include**:
+- `UserId` - For user-specific operations
+- `Email` - For authentication operations (before UserId is available)
+- `TenantId` - For multi-tenant context
+- `SiteId` - For site-specific operations
+- `RequestId` - For request correlation
+- Entity IDs for CRUD operations
+
+### Authentication Logging Requirements
+
+Based on `AuthController` and `AuthService` implementations:
+
+**Information Level** (successful operations):
+- User login, registration, email confirmation
+- Password reset initiation and completion
+- Token refresh operations
+- Tenant and site switching
+- Session management activities
+
+**Warning Level** (failed attempts):
+- Invalid login credentials
+- Expired or invalid tokens
+- Email confirmation failures
+- Password reset failures
+- Authorization violations
+
+**Debug Level** (troubleshooting details):
+- JWT token claims generation
+- Permission resolution details
+- Complex authentication flow steps
+
+### Controller Exception Handling with Logging
+
+Controllers should catch service exceptions and log appropriately:
+
+```csharp
+try 
+{
+    await _service.SomeMethod(dto);
+    _logger.LogInformation("Operation completed successfully for {Context}", contextInfo);
+    return Ok(new { Message = "Success message" });
+}
+catch (NotFoundException ex)
+{
+    _logger.LogWarning("Resource not found: {Message}", ex.Message);
+    return NotFound(ex.Message);
+}
+catch (InvalidDataException ex)
+{
+    _logger.LogWarning("Invalid request data: {Message}", ex.Message);
+    return BadRequest(ex.Message);
+}
+catch (Exception ex)
+{
+    _logger.LogError(ex, "Unexpected error in {Operation}", "OperationName");
+    return StatusCode(500, "Internal server error");
+}
+```
+
+### Framework Noise Management
+
+The application filters Microsoft framework logs to reduce noise while preserving essential information:
+
+**Framework Filtering** (configured in `Program.cs`):
+```csharp
+// Filter out Microsoft framework debug noise
+builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+
+// Override for essential Microsoft logs at Information level
+builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication", LogLevel.Information);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Authorization", LogLevel.Information);  
+builder.Logging.AddFilter("Microsoft.AspNetCore.Routing.EndpointMiddleware", LogLevel.Information);
+builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Information);
+```
+
+**EF Core Noise Control**:
+- Use `LOGGING_EF_VERBOSE=false` environment variable to suppress EF query noise
+- Database command logging filtered to Warning level unless explicitly enabled
+
+### Security Logging Considerations
+
+**DO Log**:
+- Authentication successes and failures with context
+- Authorization failures with user and resource context
+- Security-related configuration changes
+- Token generation and validation events
+
+**DON'T Log**:
+- Passwords or other secrets
+- Complete JWT tokens (only claims for debugging)
+- Personal data unless necessary for security auditing
+- Sensitive business data in plain text
+
+### Performance Considerations
+
+- Use structured logging parameters instead of string interpolation
+- Avoid expensive operations in log statements
+- Consider log level guards for complex Debug statements:
+  ```csharp
+  if (_logger.IsEnabled(LogLevel.Debug))
+  {
+      _logger.LogDebug("Complex debug info: {Data}", ExpensiveOperation());
+  }
+  ```
