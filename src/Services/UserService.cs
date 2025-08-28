@@ -618,12 +618,20 @@ public class UserService : IUserService
     }
 
 
-    public async Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId)
+    public async Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(RoleScope scope, Guid? tenantId = null, Guid? siteId = null)
     {
-        return await _context.UserInvitations
-            .Where(ui => ui.TenantId == tenantId && 
-                        !ui.IsUsed && 
-                        ui.ExpiresAt > DateTime.UtcNow)
+        var query = _context.UserInvitations
+            .Where(ui => !ui.IsUsed && ui.ExpiresAt > DateTime.UtcNow);
+
+        query = scope switch
+        {
+            RoleScope.Internal => query.Where(ui => ui.Scope == RoleScope.Internal),
+            RoleScope.Tenant => query.Where(ui => ui.TenantId == tenantId && ui.Scope == RoleScope.Tenant),
+            RoleScope.Site => query.Where(ui => ui.SiteId == siteId && ui.Scope == RoleScope.Site),
+            _ => throw new InvalidDataException($"Invalid scope: {scope}")
+        };
+
+        return await query
             .OrderByDescending(ui => ui.CreateDate)
             .ToListAsync();
     }

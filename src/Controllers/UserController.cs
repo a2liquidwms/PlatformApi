@@ -527,28 +527,65 @@ public class UserController : ControllerBase
     }
 
 
-    // Get pending invitations for current tenant
+    // Get pending tenant invitations
     [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.TenantManageUsers)]
-    [HttpGet("invitations")]
-    public async Task<ActionResult<IEnumerable<UserInvitation>>> GetPendingInvitations()
+    [HttpGet("invitations/tenant")]
+    public async Task<ActionResult<IEnumerable<UserInvitation>>> GetPendingTenantInvitations()
     {
         try
         {
             var tenantId = _tenantHelper.GetTenantId();
-            var invitations = await _userService.GetPendingInvitationsAsync(tenantId);
+            var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Tenant, tenantId);
             
             return Ok(invitations);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting pending invitations for tenant");
+            _logger.LogError(ex, "Error getting pending tenant invitations");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Get pending site invitations
+    [RequireTenantAccess]
+    [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
+    [HttpGet("invitations/site/{siteId:guid}")]
+    public async Task<ActionResult<IEnumerable<UserInvitation>>> GetPendingSiteInvitations([FromRoute] Guid siteId)
+    {
+        try
+        {
+            var tenantId = _tenantHelper.GetTenantId();
+            var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Site, tenantId, siteId);
+            
+            return Ok(invitations);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting pending site invitations for site {SiteId}", siteId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    // Get pending internal invitations
+    [RequirePermission(RolePermissionConstants.SysAdminManageUsers)]
+    [HttpGet("invitations/internal")]
+    public async Task<ActionResult<IEnumerable<UserInvitation>>> GetPendingInternalInvitations()
+    {
+        try
+        {
+            var invitations = await _userService.GetPendingInvitationsAsync(RoleScope.Internal);
+            
+            return Ok(invitations);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting pending internal invitations");
             return StatusCode(500, "Internal server error");
         }
     }
 
     // Delete invitation by email
-    [RequireTenantAccess]
     [RequirePermission(RolePermissionConstants.TenantManageUsers)]
     [HttpDelete("invitation/{email}")]
     public async Task<ActionResult> DeleteInvitation([FromRoute] string email)

@@ -35,7 +35,7 @@ public interface IUserService
     // User invitation methods
     Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, RoleScope expectedScope, string invitedByUserId);
     Task<UserInvitation?> ValidateInvitationTokenAsync(string token);
-    Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(Guid tenantId);
+    Task<IEnumerable<UserInvitation>> GetPendingInvitationsAsync(RoleScope scope, Guid? tenantId = null, Guid? siteId = null);
     Task DeleteInvitationAsync(string email);
     
     
