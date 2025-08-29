@@ -14,6 +14,8 @@ This file provides guidance to Claude Code when working with this repository.
 
 **Data**: Postgres with Entity Framework Core, code-first migrations. AutoMapper for DTOs.
 
+**Configuration**: Environment variables via `.env` file (see `.env.example`). No appsettings.json used.
+
 **Auth**: JWT-based with refresh tokens, role-based permissions with tenant-specific assignments.
 
 ## Key Services
