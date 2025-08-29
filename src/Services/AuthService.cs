@@ -116,9 +116,6 @@ public class AuthService : IAuthService
             await ValidateUserSiteAccess(user, (Guid)siteId, (Guid)tenantId!);
         }
         
-        // Auto-select tenant/site if not specified
-        (tenantId, siteId) = await AutoSelectTenantAndSite(user, tenantId, siteId);
-
         var token = await GenerateTokenBundle(user, tenantId, siteId);
         
         _logger.LogInformation("User {UserId} ({Email}) logged in successfully with tenant {TenantId} and site {SiteId}", 
@@ -467,6 +464,9 @@ public class AuthService : IAuthService
 
     private async Task<AuthTokenBundleWithRefresh> GenerateTokenBundle(AuthUser user, Guid? tenantId = null, Guid? siteId = null)
     {
+        // Auto-select tenant/site if not specified
+        (tenantId, siteId) = await AutoSelectTenantAndSite(user, tenantId, siteId);
+        
         var tokenReturn = await GenerateJwtToken(user, tenantId, siteId);
         var refreshToken = await GenerateRefreshToken(user, tenantId, siteId);
         
@@ -719,7 +719,7 @@ public class AuthService : IAuthService
             token.IsRevoked = true;
         }
 
-        // Generate new token bundle with tenant context (no site)
+        // Generate new token bundle with tenant context
         var tokenBundle = await GenerateTokenBundle(user, tenantId, null);
         
         return tokenBundle;
