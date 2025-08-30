@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using PlatformApi.Models.BaseModels;
+using PlatformApi.Common.Models.BaseModels;
 
 namespace PlatformApi.Models;
 

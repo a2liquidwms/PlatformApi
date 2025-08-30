@@ -80,14 +80,4 @@ public static class AuthServerExtensions
                 };
             });
     }
-    
-    public static WebApplication ConfigureAuthCookies(this WebApplication app)
-    {
-        app.UseCookiePolicy(new CookiePolicyOptions
-        {
-            MinimumSameSitePolicy = SameSiteMode.Unspecified,
-            Secure = CookieSecurePolicy.None // Use .Always in production
-        });
-        return app;
-    }
 }

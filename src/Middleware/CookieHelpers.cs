@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace PlatformApi.Common.Helpers;
+namespace PlatformApi.Middleware;
 
 public static class CookieHelpers
 {

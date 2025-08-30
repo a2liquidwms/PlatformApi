@@ -23,8 +23,6 @@ public static class TenantStartupExtensions
 
     public static WebApplication ConfigureTenantMiddleware(this WebApplication app)
     {
-        app.UseMiddleware<TenantMiddleware>();
-        app.UseMiddleware<SiteMiddleware>();
         return app;
     }
 }

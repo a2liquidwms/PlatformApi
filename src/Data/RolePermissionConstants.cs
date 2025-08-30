@@ -1,4 +1,4 @@
-namespace PlatformApi.Common.Constants;
+namespace PlatformApi.Data;
 
 public static class RolePermissionConstants
 {

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.OpenApi.Models;
+using PlatformApi.Common.Auth;
+using PlatformApi.Common.Permissions;
 
 namespace PlatformApi.Common.Startup;
 
@@ -46,41 +48,43 @@ public static class StartupExtensions
         services.AddRouting(options => options.LowercaseUrls = true);
     }
 
-    public static void 
+    public static void
         AddCorsCustom(this IServiceCollection services, IConfiguration configuration)
     {
         var allowedHosts = configuration["CORS_ALLOWEDHOSTS"] ?? throw new InvalidOperationException();
-        
+
         services.AddCors(p =>
-            p.AddPolicy("corsPolicy", b => {
+            p.AddPolicy("corsPolicy", b =>
+            {
                 b.SetIsOriginAllowed(origin =>
-                {
-                    // Handle comma-separated origins and wildcard patterns
-                    var allowedOrigins = allowedHosts.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                                    .Select(host => host.Trim());
-                    
-                    foreach (var allowedOrigin in allowedOrigins)
                     {
-                        // Handle wildcard patterns for subdomains (e.g., "*.ui.myapp.local:3001")
-                        if (allowedOrigin.Contains("*"))
+                        // Handle comma-separated origins and wildcard patterns
+                        var allowedOrigins = allowedHosts.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Select(host => host.Trim());
+
+                        foreach (var allowedOrigin in allowedOrigins)
                         {
-                            var pattern = allowedOrigin.Replace("*", ".*");
-                            if (System.Text.RegularExpressions.Regex.IsMatch(origin, $"^{pattern}$"))
+                            // Handle wildcard patterns for subdomains (e.g., "*.ui.myapp.local:3001")
+                            if (allowedOrigin.Contains("*"))
+                            {
+                                var pattern = allowedOrigin.Replace("*", ".*");
+                                if (System.Text.RegularExpressions.Regex.IsMatch(origin, $"^{pattern}$"))
+                                {
+                                    return true;
+                                }
+                            }
+                            // Handle exact matches
+                            else if (origin == allowedOrigin)
                             {
                                 return true;
                             }
                         }
-                        // Handle exact matches
-                        else if (origin == allowedOrigin)
-                        {
-                            return true;
-                        }
-                    }
-                    return false;
-                })
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials();
+
+                        return false;
+                    })
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .AllowCredentials();
             }));
     }
 
@@ -103,6 +107,11 @@ public static class StartupExtensions
 
             options.Filters.Add<InputValidationFilter>(); //change modelStateInvalid output
         }).AddJsonOptions(options => { options.JsonSerializerOptions.Converters.Add(new NullableGuidConverter()); });
+        
+        services.AddScoped<UserHelper>();
+        services.AddScoped<PermissionHelper>();
+        services
+            .AddSingleton<IAuthorizationMiddlewareResultHandler, AuthResponseHandler>();
     }
 
     public static WebApplication ConfigureCors(this WebApplication app)

@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
-using PlatformApi.Models.BaseModels;
 
 namespace PlatformApi.Models;
 

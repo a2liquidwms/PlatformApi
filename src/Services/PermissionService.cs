@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using NetStarterCommon.Core.Common.Models;
+using PlatformApi.Common.Auth;
 using PlatformApi.Common.Constants;
 using PlatformApi.Common.Services;
 using PlatformApi.Data;

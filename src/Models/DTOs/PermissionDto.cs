@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using PlatformApi.Models.BaseModels;
+using PlatformApi.Common.Models.BaseModels;
 
 namespace PlatformApi.Models.DTOs;
 

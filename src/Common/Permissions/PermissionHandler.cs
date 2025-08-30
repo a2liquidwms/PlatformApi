@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
-using NetStarterCommon.Core.Common.Models;
+using PlatformApi.Common.Auth;
 
 namespace PlatformApi.Common.Permissions
 {

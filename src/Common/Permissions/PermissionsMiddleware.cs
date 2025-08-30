@@ -1,7 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
-using NetStarterCommon.Core.Common.Models;
+using PlatformApi.Common.Auth;
 using PlatformApi.Common.Constants;
 
 namespace PlatformApi.Common.Permissions;

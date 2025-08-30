@@ -1,4 +1,4 @@
-using NetStarterCommon.Core.Common.Models;
+using PlatformApi.Common.Auth;
 using PlatformApi.Models;
 
 namespace PlatformApi.Services;

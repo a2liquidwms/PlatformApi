@@ -11,6 +11,7 @@ using PlatformApi.Common.Services;
 using PlatformApi.Common.Startup;
 using PlatformApi.Common.Tenant;
 using PlatformApi.Data;
+using PlatformApi.Middleware;
 using PlatformApi.Services;
 using Serilog;
 using Serilog.Events;
@@ -76,7 +77,7 @@ builder.Services.AddSingleton<IAmazonSimpleNotificationService>(provider =>
 builder.Services.ConfigureIdentity();
 
 builder.Services.AddCommonStartupServices(builder.Configuration);  // from Common
-AuthStartupExtensions.ConfigureAuthWithJwt(builder.Services, builder.Configuration);
+builder.Services.ConfigureAuthWithJwt(builder.Configuration);
 builder.Services.AddCorsCustom(builder.Configuration);
 builder.Services.AddSwaggerDocExtensions(builder.Configuration);
 builder.Services.TenantCheckServices(builder.Configuration);
@@ -89,8 +90,8 @@ builder.Services.AddMemoryCache();
 // Default to memory cache
 //builder.Services.AddSingleton<ICacheService, DistributedCacheService>();
 builder.Services.AddSingleton<ICacheService, MemoryCacheService>();
-
 builder.Services.AddScoped<IUnitOfWork<PlatformDbContext>, UnitOfWork<PlatformDbContext>>();
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
@@ -108,9 +109,6 @@ else
 {
     builder.Services.AddScoped<ISnsService, NoOpSnsService>();
 }
-builder.Services.AddScoped<UserHelper>();
-builder.Services.AddScoped<PermissionHelper>();
-
 
 // Add Google Authentication Separately
 // var logger = LoggerFactory.Create(logging =>
@@ -119,8 +117,6 @@ builder.Services.AddScoped<PermissionHelper>();
 // }).CreateLogger<StartupBase>();
 // builder.Services.AddGoogleAuthentication(builder.Configuration, logger);
 
-builder.Services
-    .AddSingleton<IAuthorizationMiddlewareResultHandler, AuthResponseHandler>();
 
 var app = builder.Build();
 

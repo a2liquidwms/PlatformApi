@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace PlatformApi.Models.BaseModels;
+namespace PlatformApi.Common.Models.BaseModels;
 
 public interface IBaseObject
 {

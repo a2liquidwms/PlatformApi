@@ -2,14 +2,7 @@ namespace PlatformApi.Common.Constants;
 
 public static class CommonConstants
 {
-    public const string TenantHeaderKey = "X-Tenant-Id";
-    
-    public const string TenantHeaderSubdomain = "X-Tenant-Subdomain";
-    
-    public const string SiteHeaderKey = "X-Site-Id";
-    
     public const string TenantHttpContext = "TenantId";
-    public const string SiteHttpContext = "SiteId";
     
     public const string ActiveTenantClaim = "active_tenant";
     

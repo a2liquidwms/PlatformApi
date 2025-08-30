@@ -50,7 +50,7 @@
 
   <ItemGroup>
     <Folder Include="Migrations\" />
-    <Folder Include="TempStarter\" />
+    <Folder Include="Models\BaseModels\" />
   </ItemGroup>
 
   <ItemGroup>

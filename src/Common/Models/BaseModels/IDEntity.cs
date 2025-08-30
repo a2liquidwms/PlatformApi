@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace PlatformApi.Models.BaseModels;
+namespace PlatformApi.Common.Models.BaseModels;
 
 public interface IDEntity
 {

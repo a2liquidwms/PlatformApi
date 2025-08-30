@@ -1,5 +1,5 @@
 
-namespace NetStarterCommon.Core.Common.Models;
+namespace PlatformApi.Common.Auth;
 
 public class CommonPermission
 {

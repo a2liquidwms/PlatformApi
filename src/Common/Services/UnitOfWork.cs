@@ -1,7 +1,7 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
-using PlatformApi.Models.BaseModels;
+using PlatformApi.Common.Models.BaseModels;
 
 namespace PlatformApi.Common.Services
 {
