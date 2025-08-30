@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using PlatformApi.Common.Constants;
-using PlatformApi.Common.Services;
+using PlatformStarterCommon.Core.Common.Constants;
+using PlatformStarterCommon.Core.Common.Services;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.Messages;

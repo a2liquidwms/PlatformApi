@@ -1,9 +1,9 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
-using PlatformApi.Common.Auth;
-using PlatformApi.Common.Constants;
-using PlatformApi.Common.Permissions;
+using PlatformStarterCommon.Core.Common.Auth;
+using PlatformStarterCommon.Core.Common.Constants;
+using PlatformStarterCommon.Core.Common.Permissions;
 using PlatformApi.Models;
 using PlatformApi.Services;
 

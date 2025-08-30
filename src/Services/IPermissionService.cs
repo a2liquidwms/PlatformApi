@@ -1,4 +1,4 @@
-using PlatformApi.Common.Auth;
+using PlatformStarterCommon.Core.Common.Auth;
 using PlatformApi.Models;
 
 namespace PlatformApi.Services;

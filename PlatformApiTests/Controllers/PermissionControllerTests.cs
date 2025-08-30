@@ -1,5 +1,5 @@
 using AutoMapper;
-using PlatformApi.Common.Constants;
+using PlatformStarterCommon.Core.Common.Constants;
 using PlatformApi.Controllers;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;

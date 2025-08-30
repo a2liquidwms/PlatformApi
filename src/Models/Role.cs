@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
-using PlatformApi.Common.Models.BaseModels;
+using PlatformStarterCommon.Core.Common.Models.BaseModels;
 
 namespace PlatformApi.Models;
 

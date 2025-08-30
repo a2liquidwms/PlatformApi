@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PlatformApi.Common.Auth;
-using PlatformApi.Common.Constants;
-using PlatformApi.Common.Tenant;
+using PlatformStarterCommon.Core.Common.Auth;
+using PlatformStarterCommon.Core.Common.Constants;
+using PlatformStarterCommon.Core.Common.Tenant;
 using PlatformApi.Middleware;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
@@ -68,7 +68,7 @@ public class AuthController : ControllerBase
         var tenantNullable = request.TenantId;
 
         var user = new AuthUser { UserName = request.Email, Email = request.Email };
-        var result = await _authService.Register(user, request.Password, null, tenantNullable, null);
+        var result = await _authService.Register(user, request.Password, null, tenantNullable ?? Guid.Empty);
 
         if (!result.Succeeded)
         {
@@ -210,7 +210,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var result = await _authService.ConfirmEmailAsync(request.UserId, request.Token, null, request.TenantId);
+            var result = await _authService.ConfirmEmailAsync(request.UserId, request.Token, null, request.TenantId ?? Guid.Empty);
 
             if (result)
             {
@@ -234,7 +234,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var result = await _authService.SendEmailConfirmationAsync(request.Email, null, request.TenantId, null);
+            var result = await _authService.SendEmailConfirmationAsync(request.Email, null, request.TenantId ?? Guid.Empty);
 
             if (result)
             {
@@ -257,7 +257,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            await _authService.SendPasswordResetAsync(request.Email, null, request.TenantId);
+            await _authService.SendPasswordResetAsync(request.Email, null, request.TenantId ?? Guid.Empty);
             
             return Ok(new { Message = "If the email address is registered, a password reset email has been sent." });
         }
@@ -275,7 +275,7 @@ public class AuthController : ControllerBase
         try
         {
             var result = await _authService.ResetPasswordAsync(request.UserId, request.Token, request.NewPassword, null,
-                request.TenantId);
+                request.TenantId ?? Guid.Empty);
 
             if (result)
             {
@@ -389,8 +389,8 @@ public class AuthController : ControllerBase
         try
         {
             var userId = _userHelper.GetCurrentUserId();
-            var tenantId = _tenantHelper.GetTenantId() != Guid.Empty ? _tenantHelper.GetTenantId() : (Guid?)null;
-            var siteId = _tenantHelper.GetSiteId() != Guid.Empty ? _tenantHelper.GetSiteId() : (Guid?)null;
+            var tenantId = _tenantHelper.GetTenantId();
+            var siteId = _tenantHelper.GetSiteId();
             var permissions = await _authService.GetUserPermissionsAsync(userId, tenantId, siteId);
             return Ok(permissions);
         }
@@ -420,8 +420,8 @@ public class AuthController : ControllerBase
         try
         {
             var userId = _userHelper.GetCurrentUserId();
-            var tenantId = _tenantHelper.GetTenantId() != Guid.Empty ? _tenantHelper.GetTenantId() : (Guid?)null;
-            var siteId = _tenantHelper.GetSiteId() != Guid.Empty ? _tenantHelper.GetSiteId() : (Guid?)null;
+            var tenantId = _tenantHelper.GetTenantId();
+            var siteId = _tenantHelper.GetSiteId();
             var roles = await _authService.GetUserRolesAsync(userId, tenantId, siteId);
             return Ok(roles);
         }

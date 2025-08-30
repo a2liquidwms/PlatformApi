@@ -53,31 +53,31 @@ public static class AuthServerExtensions
         });
     }
     
-    public static void AddGoogleAuthentication(this IServiceCollection services, IConfiguration configuration,
-        ILogger logger)
-    {
-        services.AddAuthentication()
-            .AddGoogle(googleOptions =>
-            {
-                googleOptions.ClientId = configuration["AUTH_GOOGLE_CLIENT_ID"]
-                                         ?? throw new InvalidOperationException("Missing Google Client ID");
-                googleOptions.ClientSecret = configuration["AUTH_GOOGLE_CLIENT_SECRET"]
-                                             ?? throw new InvalidOperationException("Missing Google Client Secret");
-                googleOptions.SaveTokens = true;
-
-                googleOptions.CorrelationCookie.SameSite = SameSiteMode.None;
-                googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-                
-                googleOptions.Events.OnTicketReceived = context =>
-                {
-                    logger.LogInformation($"Successfully authenticated user: {context.Principal?.Identity?.Name}");
-                    return Task.CompletedTask;
-                };
-                googleOptions.Events.OnRemoteFailure = context =>
-                {
-                    logger.LogError($"Failed to authenticate user: {context.Failure?.Message}");
-                    return Task.CompletedTask;
-                };
-            });
-    }
+    // public static void AddGoogleAuthentication(this IServiceCollection services, IConfiguration configuration,
+    //     ILogger logger)
+    // {
+    //     services.AddAuthentication()
+    //         .AddGoogle(googleOptions =>
+    //         {
+    //             googleOptions.ClientId = configuration["AUTH_GOOGLE_CLIENT_ID"]
+    //                                      ?? throw new InvalidOperationException("Missing Google Client ID");
+    //             googleOptions.ClientSecret = configuration["AUTH_GOOGLE_CLIENT_SECRET"]
+    //                                          ?? throw new InvalidOperationException("Missing Google Client Secret");
+    //             googleOptions.SaveTokens = true;
+    //
+    //             googleOptions.CorrelationCookie.SameSite = SameSiteMode.None;
+    //             googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+    //             
+    //             googleOptions.Events.OnTicketReceived = context =>
+    //             {
+    //                 logger.LogInformation($"Successfully authenticated user: {context.Principal?.Identity?.Name}");
+    //                 return Task.CompletedTask;
+    //             };
+    //             googleOptions.Events.OnRemoteFailure = context =>
+    //             {
+    //                 logger.LogError($"Failed to authenticate user: {context.Failure?.Message}");
+    //                 return Task.CompletedTask;
+    //             };
+    //         });
+    // }
 }

@@ -1,9 +1,9 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using PlatformApi.Common.Constants;
-using PlatformApi.Common.Permissions;
-using PlatformApi.Common.Services;
+using PlatformStarterCommon.Core.Common.Constants;
+using PlatformStarterCommon.Core.Common.Permissions;
+using PlatformStarterCommon.Core.Common.Services;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
