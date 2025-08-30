@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
-using NetStarterCommon.Core.Common.Tenant;
+using PlatformStarterCommon.Core.Common.Tenant;
 using PlatformApi.Controllers;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;

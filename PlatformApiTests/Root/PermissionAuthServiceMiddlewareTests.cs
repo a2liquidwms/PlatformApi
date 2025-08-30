@@ -4,8 +4,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using NetStarterCommon.Core.Common.Models;
-using NetStarterCommon.Core.Common.Permissions;
+using PlatformStarterCommon.Core.Common.Models;
+using PlatformStarterCommon.Core.Common.Permissions;
 using PlatformApi;
 using PlatformStarterCommon.Core.Common.Auth;
 using PlatformStarterCommon.Core.Common.Constants;
@@ -13,7 +13,6 @@ using PlatformStarterCommon.Core.Common.Permissions;
 using PlatformApi.Middleware;
 using PlatformApi.Models;
 using PlatformApi.Services;
-using RedClayAuthApi;
 
 namespace PlatformApiTests.Root
 {

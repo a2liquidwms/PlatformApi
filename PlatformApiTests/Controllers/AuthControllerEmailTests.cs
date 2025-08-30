@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using NetStarterCommon.Core.Common.Tenant;
+using PlatformStarterCommon.Core.Common.Tenant;
 using PlatformStarterCommon.Core.Common.Constants;
 using PlatformApi.Controllers;
 using PlatformApi.Models;

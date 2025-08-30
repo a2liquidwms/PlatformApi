@@ -8,11 +8,30 @@
     <RootNamespace>PlatformApi</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <Configurations>Debug;Release;localNuget</Configurations>
+    <Platforms>AnyCPU</Platforms>
   </PropertyGroup>
 
   <PropertyGroup>
     <NoWarn>$(NoWarn);CS7022</NoWarn>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <UseLocalPackage>true</UseLocalPackage>
+  </PropertyGroup>
+
+  <Choose>
+    <When Condition="'$(UseLocalPackage)' == 'true'">
+      <ItemGroup>
+        <ProjectReference Include="..\..\PlatformStarterCommon\PlatformStarterCommon.Core\PlatformStarterCommon.Core.csproj" />
+      </ItemGroup>
+    </When>
+    <Otherwise>
+      <ItemGroup>
+        <PackageReference Include="PlatformStarterCommon" Version="1.0.4" />
+      </ItemGroup>
+    </Otherwise>
+  </Choose>
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="13.0.1" />
@@ -34,8 +53,6 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.1" />
     <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="8.0.12" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
-    <PackageReference Include="PlatformStarterCommon" Version="1.0.4" />
-    
   </ItemGroup>
 
   <ItemGroup>
@@ -46,12 +63,5 @@
   <ItemGroup>
     <None Remove="Properties\launchSettings.json" />
   </ItemGroup>
-
-  <ItemGroup>
-    <_ContentIncludedByDefault Remove="TempStarter\NetStarterCommon.Core\obj\Debug\net8.0\NetStarterCommon.Core.sourcelink.json" />
-    <_ContentIncludedByDefault Remove="TempStarter\NetStarterCommon.Core\obj\NetStarterCommon.Core.csproj.nuget.dgspec.json" />
-    <_ContentIncludedByDefault Remove="TempStarter\NetStarterCommon.Core\obj\project.assets.json" />
-    <_ContentIncludedByDefault Remove="TempStarter\NetStarterCommon.Core\obj\project.packagespec.json" />
-  </ItemGroup>
-
+  
 </Project>
