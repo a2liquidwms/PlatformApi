@@ -8,7 +8,7 @@
     <RootNamespace>PlatformApi</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
-    <Configurations>Debug;Release;localNuget</Configurations>
+    <Configurations>Debug;Release;localNuget;LocalNuget</Configurations>
     <Platforms>AnyCPU</Platforms>
   </PropertyGroup>
 
@@ -17,6 +17,11 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <UseLocalPackage>false</UseLocalPackage>
+  </PropertyGroup>
+
+  <!-- Override to true only for specific configurations -->
+  <PropertyGroup Condition="'$(Configuration)' == 'LocalNuget'">
     <UseLocalPackage>true</UseLocalPackage>
   </PropertyGroup>
 
