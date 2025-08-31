@@ -3,13 +3,14 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Moq;
 using Microsoft.Extensions.DependencyInjection;
 using PlatformStarterCommon.Core.Common.Models;
 using PlatformStarterCommon.Core.Common.Permissions;
 using PlatformApi;
 using PlatformStarterCommon.Core.Common.Auth;
 using PlatformStarterCommon.Core.Common.Constants;
-using PlatformStarterCommon.Core.Common.Permissions;
 using PlatformApi.Middleware;
 using PlatformApi.Models;
 using PlatformApi.Services;
@@ -19,7 +20,7 @@ namespace PlatformApiTests.Root
     public class PermissionsAuthServerMiddlewareTests
     {
         private readonly Mock<IServiceScopeFactory> _mockServiceScopeFactory;
-        private readonly Mock<IMemoryCache> _mockMemoryCache;
+        private readonly Mock<ICacheService> _mockCacheService;
         private readonly Mock<ILogger<PermissionsAuthServerMiddleware>> _mockLogger;
         private readonly Mock<IPermissionService> _mockPermissionService;
         private readonly HttpContext _httpContext;
@@ -28,7 +29,7 @@ namespace PlatformApiTests.Root
         public PermissionsAuthServerMiddlewareTests()
         {
             _mockServiceScopeFactory = new Mock<IServiceScopeFactory>();
-            _mockMemoryCache = new Mock<IMemoryCache>();
+            _mockCacheService = new Mock<ICacheService>();
             _mockLogger = new Mock<ILogger<PermissionsAuthServerMiddleware>>();
             _mockPermissionService = new Mock<IPermissionService>();
             _nextDelegate = new Mock<RequestDelegate>();
@@ -61,8 +62,8 @@ namespace PlatformApiTests.Root
             // Add admin roles claim if any
             if (adminRoles.Any())
             {
-                var adminRolesJson = JsonSerializer.Serialize(adminRoles.ToArray());
-                claims.Add(new Claim(CommonConstants.AdminRolesClaim, adminRolesJson));
+                // Note: AdminRolesClaim no longer exists in CommonConstants
+                // Skipping this part as it's not needed anymore
             }
 
             var identity = new ClaimsIdentity(claims, "Bearer");
@@ -81,7 +82,7 @@ namespace PlatformApiTests.Root
                 _nextDelegate.Object,
                 _mockLogger.Object,
                 _mockServiceScopeFactory.Object,
-                _mockMemoryCache.Object);
+                _mockCacheService.Object);
 
             _httpContext.Request.Path = "/api/v1/auth/login";
 
@@ -97,65 +98,83 @@ namespace PlatformApiTests.Root
         public async Task InvokeAsync_ProcessesPermissions_WhenUserIsAuthenticated()
         {
             // Arrange
-            var userId = "test-user-id";
+            var userId = Guid.NewGuid().ToString();
             var userRoles = new List<string> { "User", "Manager" };
             SetupAuthenticatedUser(userId, userRoles, new List<string>());
 
             // Mock cache miss
-            object? cacheValue = null;
-            _mockMemoryCache.Setup(x => x.TryGetValue(CommonConstants.PermissionRoleCacheKey, out cacheValue))
-                .Returns(false);
+            _mockCacheService.Setup(x => x.GetAsync<List<CommonRolesPermission>>(It.IsAny<string>()))
+                .ReturnsAsync((List<CommonRolesPermission>?)null);
 
             // Mock permission service
-            var testRole1 = new AuthRole
+            var testRole1 = new Role
             {
-                Id = "role1",
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                Scope = RoleScope.Tenant,
                 Name = "User",
                 RolePermissions = new List<RolePermission>
                 {
                     new RolePermission 
                     { 
-                        UserRoleId = "role1",
+                        RoleId = Guid.Parse("00000000-0000-0000-0000-000000000001"),
                         PermissionCode = "read:data",
                         Permission = new Permission { Code = "read:data" } 
                     },
                     new RolePermission 
                     { 
-                        UserRoleId = "role1",
+                        RoleId = Guid.Parse("00000000-0000-0000-0000-000000000001"),
                         PermissionCode = "write:data",
                         Permission = new Permission { Code = "write:data" } 
                     }
                 }
             };
 
-            var testRole2 = new AuthRole
+            var testRole2 = new Role
             {
-                Id = "role2",
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+                Scope = RoleScope.Tenant,
                 Name = "Manager",
                 RolePermissions = new List<RolePermission>
                 {
                     new RolePermission 
                     { 
-                        UserRoleId = "role2",
+                        RoleId = Guid.Parse("00000000-0000-0000-0000-000000000002"),
                         PermissionCode = "manage:users",
                         Permission = new Permission { Code = "manage:users" } 
                     }
                 }
             };
 
-            _mockPermissionService.Setup(x => x.GetAllRoles(true))
-                .ReturnsAsync(new List<AuthRole> { testRole1, testRole2 });
+            _mockPermissionService.Setup(x => x.GetAllRolesWithPermissionsCached())
+                .ReturnsAsync(new List<CommonRolesPermission> { 
+                    new CommonRolesPermission
+                    {
+                        Id = "role1",
+                        Name = "User",
+                        Permissions = new List<CommonPermission>
+                        {
+                            new CommonPermission { Code = "read:data" },
+                            new CommonPermission { Code = "write:data" }
+                        }
+                    },
+                    new CommonRolesPermission
+                    {
+                        Id = "role2",
+                        Name = "Manager",
+                        Permissions = new List<CommonPermission>
+                        {
+                            new CommonPermission { Code = "manage:users" }
+                        }
+                    }
+                });
 
-            // Mock cache set
-            var cacheEntry = new Mock<ICacheEntry>();
-            _mockMemoryCache.Setup(x => x.CreateEntry(CommonConstants.PermissionRoleCacheKey))
-                .Returns(cacheEntry.Object);
+            // No need to mock cache set as we're using the GetAllRolesWithPermissionsCached method
 
             var middleware = new PermissionsAuthServerMiddleware(
                 _nextDelegate.Object,
                 _mockLogger.Object,
                 _mockServiceScopeFactory.Object,
-                _mockMemoryCache.Object);
+                _mockCacheService.Object);
 
             // Act
             await middleware.InvokeAsync(_httpContext);
@@ -173,14 +192,14 @@ namespace PlatformApiTests.Root
         }
 
         [Fact]
-        public async Task InvokeAsync_UsesCache_WhenRolesAreCached()
+        public async Task InvokeAsync_CallsPermissionService_WhenUserIsAuthenticated()
         {
             // Arrange
-            var userId = "test-user-id";
+            var userId = Guid.NewGuid().ToString();
             var userRoles = new List<string> { "User" };
             SetupAuthenticatedUser(userId, userRoles, new List<string>());
 
-            // Mock cache hit
+            // Mock permission service to return roles with permissions
             var cachedRoles = new List<CommonRolesPermission>
             {
                 new CommonRolesPermission
@@ -189,93 +208,71 @@ namespace PlatformApiTests.Root
                     Name = "User",
                     Permissions = new List<CommonPermission>
                     {
-                        new CommonPermission { Code = "cached:permission" }
+                        new CommonPermission { Code = "user:permission" }
                     }
                 }
             };
 
-            object cacheValue = cachedRoles;
-            _mockMemoryCache.Setup(x => x.TryGetValue(CommonConstants.PermissionRoleCacheKey, out cacheValue!))
-                .Returns(true);
+            _mockPermissionService.Setup(x => x.GetAllRolesWithPermissionsCached())
+                .ReturnsAsync(cachedRoles);
 
             var middleware = new PermissionsAuthServerMiddleware(
                 _nextDelegate.Object,
                 _mockLogger.Object,
                 _mockServiceScopeFactory.Object,
-                _mockMemoryCache.Object);
+                _mockCacheService.Object);
 
             // Act
             await middleware.InvokeAsync(_httpContext);
 
             // Assert
-            // Verify that permission service was not called
-            _mockPermissionService.Verify(x => x.GetAllRoles(It.IsAny<bool>()), Times.Never);
+            // Verify that permission service was called
+            _mockPermissionService.Verify(x => x.GetAllRolesWithPermissionsCached(), Times.Once);
             
             // Verify permissions were set
             var permissions = _httpContext.Items[PermissionConstants.PermissionContext] as List<CommonPermission>;
             Assert.NotNull(permissions);
             Assert.Single(permissions);
-            Assert.Equal("cached:permission", permissions[0].Code);
+            Assert.Equal("user:permission", permissions[0].Code);
         }
 
         [Fact]
-        public async Task InvokeAsync_HandlesAdminRolesClaim()
+        public async Task InvokeAsync_HandlesMultipleRolesFromClaims()
         {
             // Arrange
-            var userId = "test-user-id";
-            var userRoles = new List<string> { "User" };
-            var adminRoles = new List<string> { "Admin" };
-            SetupAuthenticatedUser(userId, userRoles, adminRoles);
-
-            // Mock cache miss
-            object? cacheValue = null;
-            _mockMemoryCache.Setup(x => x.TryGetValue(CommonConstants.PermissionRoleCacheKey, out cacheValue))
-                .Returns(false);
+            var userId = Guid.NewGuid().ToString();
+            // Set up both User and Admin roles in the roles claim (no separate admin claim anymore)
+            var userRoles = new List<string> { "User", "Admin" };
+            SetupAuthenticatedUser(userId, userRoles, new List<string>());
 
             // Mock permission service
-            var userRole = new AuthRole
-            {
-                Id = "role1",
-                Name = "User",
-                RolePermissions = new List<RolePermission>
-                {
-                    new RolePermission 
-                    { 
-                        UserRoleId = "role1",
-                        PermissionCode = "user:permission",
-                        Permission = new Permission { Code = "user:permission" } 
+            _mockPermissionService.Setup(x => x.GetAllRolesWithPermissionsCached())
+                .ReturnsAsync(new List<CommonRolesPermission> { 
+                    new CommonRolesPermission
+                    {
+                        Id = "role1",
+                        Name = "User",
+                        Permissions = new List<CommonPermission>
+                        {
+                            new CommonPermission { Code = "user:permission" }
+                        }
+                    },
+                    new CommonRolesPermission
+                    {
+                        Id = "role2",
+                        Name = "Admin",
+                        Permissions = new List<CommonPermission>
+                        {
+                            new CommonPermission { Code = "admin:permission" }
+                        }
                     }
-                }
-            };
-
-            var adminRole = new AuthRole
-            {
-                Id = "role2",
-                Name = "Admin",
-                RolePermissions = new List<RolePermission>
-                {
-                    new RolePermission 
-                    { 
-                        UserRoleId = "role2",
-                        PermissionCode = "admin:permission",
-                        Permission = new Permission { Code = "admin:permission" } 
-                    }
-                }
-            };
-
-            _mockPermissionService.Setup(x => x.GetAllRoles(true))
-                .ReturnsAsync(new List<AuthRole> { userRole, adminRole });
-
-            // Mock cache set
-            var cacheEntry = new Mock<ICacheEntry>();
-            _mockMemoryCache.Setup(x => x.CreateEntry(CommonConstants.PermissionRoleCacheKey))
-                .Returns(cacheEntry.Object);
+                });
 
             var middleware = new PermissionsAuthServerMiddleware(
                 _nextDelegate.Object,
                 _mockLogger.Object,
                 _mockServiceScopeFactory.Object,
-                _mockMemoryCache.Object);
+                _mockCacheService.Object);
 
             // Act
             await middleware.InvokeAsync(_httpContext);
@@ -296,7 +293,7 @@ namespace PlatformApiTests.Root
                 _nextDelegate.Object,
                 _mockLogger.Object,
                 _mockServiceScopeFactory.Object,
-                _mockMemoryCache.Object);
+                _mockCacheService.Object);
 
             // Act
             await middleware.InvokeAsync(_httpContext);
@@ -311,24 +308,23 @@ namespace PlatformApiTests.Root
         public async Task InvokeAsync_ThrowsServiceException_WhenNoRolesReturned()
         {
             // Arrange
-            var userId = "test-user-id";
+            var userId = Guid.NewGuid().ToString();
             var userRoles = new List<string> { "User" };
             SetupAuthenticatedUser(userId, userRoles, new List<string>());
 
             // Mock cache miss
-            object? cacheValue = null;
-            _mockMemoryCache.Setup(x => x.TryGetValue(CommonConstants.PermissionRoleCacheKey, out cacheValue))
-                .Returns(false);
+            _mockCacheService.Setup(x => x.GetAsync<List<CommonRolesPermission>>(It.IsAny<string>()))
+                .ReturnsAsync((List<CommonRolesPermission>?)null);
 
             // Mock permission service to return empty list
-            _mockPermissionService.Setup(x => x.GetAllRoles(true))
-                .ReturnsAsync(new List<AuthRole>());
+            _mockPermissionService.Setup(x => x.GetAllRolesWithPermissionsCached())
+                .ReturnsAsync(new List<CommonRolesPermission>());
 
             var middleware = new PermissionsAuthServerMiddleware(
                 _nextDelegate.Object,
                 _mockLogger.Object,
                 _mockServiceScopeFactory.Object,
-                _mockMemoryCache.Object);
+                _mockCacheService.Object);
 
             // Act & Assert
             await Assert.ThrowsAsync<ServiceException>(() => 
@@ -339,71 +335,82 @@ namespace PlatformApiTests.Root
         public async Task InvokeAsync_ExtractsUniquePermissions_FromMultipleRoles()
         {
             // Arrange
-            var userId = "test-user-id";
+            var userId = Guid.NewGuid().ToString();
             var userRoles = new List<string> { "User", "Manager" };
             SetupAuthenticatedUser(userId, userRoles, new List<string>());
 
             // Mock cache miss
-            object? cacheValue = null;
-            _mockMemoryCache.Setup(x => x.TryGetValue(CommonConstants.PermissionRoleCacheKey, out cacheValue))
-                .Returns(false);
+            _mockCacheService.Setup(x => x.GetAsync<List<CommonRolesPermission>>(It.IsAny<string>()))
+                .ReturnsAsync((List<CommonRolesPermission>?)null);
 
             // Mock permission service with overlapping permissions
-            var role1 = new AuthRole
+            var role1 = new Role
             {
-                Id = "role1",
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                Scope = RoleScope.Tenant,
                 Name = "User",
                 RolePermissions = new List<RolePermission>
                 {
                     new RolePermission 
                     { 
-                        UserRoleId = "role1",
+                        RoleId = Guid.Parse("00000000-0000-0000-0000-000000000001"),
                         PermissionCode = "common:permission",
                         Permission = new Permission { Code = "common:permission" } 
                     },
                     new RolePermission 
                     { 
-                        UserRoleId = "role1",
+                        RoleId = Guid.Parse("00000000-0000-0000-0000-000000000001"),
                         PermissionCode = "user:permission",
                         Permission = new Permission { Code = "user:permission" } 
                     }
                 }
             };
 
-            var role2 = new AuthRole
+            var role2 = new Role
             {
-                Id = "role2",
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+                Scope = RoleScope.Tenant,
                 Name = "Manager",
                 RolePermissions = new List<RolePermission>
                 {
                     new RolePermission 
                     { 
-                        UserRoleId = "role2",
+                        RoleId = Guid.Parse("00000000-0000-0000-0000-000000000002"),
                         PermissionCode = "common:permission",
                         Permission = new Permission { Code = "common:permission" } 
                     },
                     new RolePermission 
                     { 
-                        UserRoleId = "role2",
+                        RoleId = Guid.Parse("00000000-0000-0000-0000-000000000002"),
                         PermissionCode = "manager:permission",
                         Permission = new Permission { Code = "manager:permission" } 
                     }
                 }
             };
 
-            _mockPermissionService.Setup(x => x.GetAllRoles(true))
-                .ReturnsAsync(new List<AuthRole> { role1, role2 });
+            _mockPermissionService.Setup(x => x.GetAllRolesWithPermissionsCached())
+                .ReturnsAsync(new List<CommonRolesPermission> { 
+                    new CommonRolesPermission
+                    {
+                        Id = role1.Id.ToString(),
+                        Name = role1.Name,
+                        Permissions = role1.RolePermissions.Select(rp => new CommonPermission { Code = rp.PermissionCode }).ToList()
+                    },
+                    new CommonRolesPermission
+                    {
+                        Id = role2.Id.ToString(),
+                        Name = role2.Name,
+                        Permissions = role2.RolePermissions.Select(rp => new CommonPermission { Code = rp.PermissionCode }).ToList()
+                    }
+                });
 
-            // Mock cache set
-            var cacheEntry = new Mock<ICacheEntry>();
-            _mockMemoryCache.Setup(x => x.CreateEntry(CommonConstants.PermissionRoleCacheKey))
-                .Returns(cacheEntry.Object);
+            // No need to mock cache set as we're using the GetAllRolesWithPermissionsCached method
 
             var middleware = new PermissionsAuthServerMiddleware(
                 _nextDelegate.Object,
                 _mockLogger.Object,
                 _mockServiceScopeFactory.Object,
-                _mockMemoryCache.Object);
+                _mockCacheService.Object);
 
             // Act
             await middleware.InvokeAsync(_httpContext);
@@ -414,6 +421,106 @@ namespace PlatformApiTests.Root
             Assert.Equal(3, permissions.Count); // Should have only unique permissions
             Assert.Contains(permissions, p => p.Code == "common:permission");
             Assert.Contains(permissions, p => p.Code == "user:permission");
+            Assert.Contains(permissions, p => p.Code == "manager:permission");
+        }
+
+        [Fact]
+        public async Task InvokeAsync_SkipsMiddleware_WhenPathIsHealthCheck()
+        {
+            // Arrange
+            var middleware = new PermissionsAuthServerMiddleware(
+                _nextDelegate.Object,
+                _mockLogger.Object,
+                _mockServiceScopeFactory.Object,
+                _mockCacheService.Object);
+
+            _httpContext.Request.Path = "/health";
+
+            // Act
+            await middleware.InvokeAsync(_httpContext);
+
+            // Assert
+            _nextDelegate.Verify(next => next(_httpContext), Times.Once);
+            Assert.False(_httpContext.Items.ContainsKey(PermissionConstants.PermissionContext));
+            _mockPermissionService.Verify(x => x.GetAllRolesWithPermissionsCached(), Times.Never);
+        }
+
+        [Fact]
+        public async Task InvokeAsync_SkipsMiddleware_WhenPathIsSwagger()
+        {
+            // Arrange
+            var middleware = new PermissionsAuthServerMiddleware(
+                _nextDelegate.Object,
+                _mockLogger.Object,
+                _mockServiceScopeFactory.Object,
+                _mockCacheService.Object);
+
+            _httpContext.Request.Path = "/swagger/index.html";
+
+            // Act
+            await middleware.InvokeAsync(_httpContext);
+
+            // Assert
+            _nextDelegate.Verify(next => next(_httpContext), Times.Once);
+            Assert.False(_httpContext.Items.ContainsKey(PermissionConstants.PermissionContext));
+            _mockPermissionService.Verify(x => x.GetAllRolesWithPermissionsCached(), Times.Never);
+        }
+
+        [Fact]
+        public async Task InvokeAsync_HandlesJsonRolesClaim()
+        {
+            // Arrange
+            var userId = Guid.NewGuid().ToString();
+            var roles = new[] { "Admin", "Manager" };
+            var rolesJson = JsonSerializer.Serialize(roles);
+
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, userId),
+                new Claim(CommonConstants.RolesClaim, rolesJson)
+            };
+
+            var identity = new ClaimsIdentity(claims, "Bearer");
+            var principal = new ClaimsPrincipal(identity);
+            _httpContext.User = principal;
+            _httpContext.Request.Headers["Authorization"] = "Bearer test_token";
+
+            _mockPermissionService.Setup(x => x.GetAllRolesWithPermissionsCached())
+                .ReturnsAsync(new List<CommonRolesPermission> { 
+                    new CommonRolesPermission
+                    {
+                        Id = "role1",
+                        Name = "Admin",
+                        Permissions = new List<CommonPermission>
+                        {
+                            new CommonPermission { Code = "admin:permission" }
+                        }
+                    },
+                    new CommonRolesPermission
+                    {
+                        Id = "role2", 
+                        Name = "Manager",
+                        Permissions = new List<CommonPermission>
+                        {
+                            new CommonPermission { Code = "manager:permission" }
+                        }
+                    }
+                });
+
+            var middleware = new PermissionsAuthServerMiddleware(
+                _nextDelegate.Object,
+                _mockLogger.Object,
+                _mockServiceScopeFactory.Object,
+                _mockCacheService.Object);
+
+            // Act
+            await middleware.InvokeAsync(_httpContext);
+
+            // Assert
+            var permissions = _httpContext.Items[PermissionConstants.PermissionContext] as List<CommonPermission>;
+            Assert.NotNull(permissions);
+            Assert.Equal(2, permissions.Count);
+            Assert.Contains(permissions, p => p.Code == "admin:permission");
             Assert.Contains(permissions, p => p.Code == "manager:permission");
         }
     }

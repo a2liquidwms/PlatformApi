@@ -1,4 +1,7 @@
 using AutoMapper;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Moq;
 using PlatformStarterCommon.Core.Common.Constants;
 using PlatformApi.Controllers;
 using PlatformApi.Models;
@@ -30,16 +33,16 @@ namespace PlatformApiTests.Controllers
         public async Task GetAllRoles_ReturnsOkResult_WithRoles()
         {
             // Arrange
-            var roles = new List<AuthRole>
+            var roles = new List<Role>
             {
-                new AuthRole { Id = "role1", Name = "Admin" },
-                new AuthRole { Id = "role2", Name = "User" }
+                new Role { Id = Guid.Parse("00000000-0000-0000-0000-000000000001"), Name = "Admin", Scope = RoleScope.Tenant },
+                new Role { Id = Guid.Parse("00000000-0000-0000-0000-000000000002"), Name = "User", Scope = RoleScope.Tenant }
             };
 
             var roleDtos = new List<RoleDto>
             {
-                new RoleDto { Id = "role1", Name = "Admin" },
-                new RoleDto { Id = "role2", Name = "User" }
+                new RoleDto { Id = Guid.Parse("00000000-0000-0000-0000-000000000001").ToString(), Name = "Admin" },
+                new RoleDto { Id = Guid.Parse("00000000-0000-0000-0000-000000000002").ToString(), Name = "User" }
             };
 
             _mockPermissionService.Setup(x => x.GetAllRoles(false))
@@ -61,8 +64,8 @@ namespace PlatformApiTests.Controllers
         public async Task GetRoleById_ReturnsOkResult_WithRole_WhenRoleExists()
         {
             // Arrange
-            var roleId = "role1";
-            var role = new AuthRole { Id = roleId, Name = "Admin" };
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000001").ToString();
+            var role = new Role { Id = Guid.Parse(roleId), Name = "Admin", Scope = RoleScope.Tenant };
             var roleDto = new RoleDto { Id = roleId, Name = "Admin" };
 
             _mockPermissionService.Setup(x => x.GetRoleById(roleId, true))
@@ -84,7 +87,7 @@ namespace PlatformApiTests.Controllers
         public async Task GetRoleById_ReturnsNotFound_WhenRoleDoesNotExist()
         {
             // Arrange
-            var roleId = "nonexistent";
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000010").ToString();
 
             _mockPermissionService.Setup(x => x.GetRoleById(roleId, true))
                 .ThrowsAsync(new NotFoundException());
@@ -100,10 +103,10 @@ namespace PlatformApiTests.Controllers
         public async Task AddRole_ReturnsCreatedAtAction_WithRole()
         {
             // Arrange
-            var roleCreateDto = new RoleCreateDto { Name = "Admin" };
-            var role = new AuthRole { Id = "role1", Name = "Admin" };
+            var roleCreateDto = new RoleCreateDto { Name = "Admin", Scope = RoleScope.Tenant };
+            var role = new Role { Id = Guid.Parse("00000000-0000-0000-0000-000000000001"), Name = "Admin", Scope = RoleScope.Tenant };
 
-            _mockMapper.Setup(x => x.Map<AuthRole>(roleCreateDto))
+            _mockMapper.Setup(x => x.Map<Role>(roleCreateDto))
                 .Returns(role);
 
             _mockPermissionService.Setup(x => x.AddRole(role))
@@ -123,11 +126,11 @@ namespace PlatformApiTests.Controllers
         public async Task UpdateRole_ReturnsNoContent_WhenUpdateSucceeds()
         {
             // Arrange
-            var roleId = "role1";
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000001").ToString();
             var roleDto = new RoleDto { Id = roleId, Name = "Updated Admin" };
-            var role = new AuthRole { Id = roleId, Name = "Updated Admin" };
+            var role = new Role { Id = Guid.Parse(roleId), Name = "Updated Admin", Scope = RoleScope.Tenant };
 
-            _mockMapper.Setup(x => x.Map<AuthRole>(roleDto))
+            _mockMapper.Setup(x => x.Map<Role>(roleDto))
                 .Returns(role);
 
             _mockPermissionService.Setup(x => x.UpdateRole(roleId, role))
@@ -144,11 +147,11 @@ namespace PlatformApiTests.Controllers
         public async Task UpdateRole_ReturnsBadRequest_WhenUpdateFails()
         {
             // Arrange
-            var roleId = "role1";
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000001").ToString();
             var roleDto = new RoleDto { Id = roleId, Name = "Updated Admin" };
-            var role = new AuthRole { Id = roleId, Name = "Updated Admin" };
+            var role = new Role { Id = Guid.Parse(roleId), Name = "Updated Admin", Scope = RoleScope.Tenant };
 
-            _mockMapper.Setup(x => x.Map<AuthRole>(roleDto))
+            _mockMapper.Setup(x => x.Map<Role>(roleDto))
                 .Returns(role);
 
             _mockPermissionService.Setup(x => x.UpdateRole(roleId, role))
@@ -166,11 +169,11 @@ namespace PlatformApiTests.Controllers
         public async Task UpdateRole_ReturnsNotFound_WhenRoleDoesNotExist()
         {
             // Arrange
-            var roleId = "nonexistent";
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000010").ToString();
             var roleDto = new RoleDto { Id = roleId, Name = "Admin" };
-            var role = new AuthRole { Id = roleId, Name = "Admin" };
+            var role = new Role { Id = Guid.Parse(roleId), Name = "Admin", Scope = RoleScope.Tenant };
 
-            _mockMapper.Setup(x => x.Map<AuthRole>(roleDto))
+            _mockMapper.Setup(x => x.Map<Role>(roleDto))
                 .Returns(role);
 
             _mockPermissionService.Setup(x => x.UpdateRole(roleId, role))
@@ -187,7 +190,7 @@ namespace PlatformApiTests.Controllers
         public async Task DeleteRole_ReturnsNoContent_WhenDeleteSucceeds()
         {
             // Arrange
-            var roleId = "role1";
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000001").ToString();
 
             _mockPermissionService.Setup(x => x.DeleteRole(roleId))
                 .ReturnsAsync(true);
@@ -203,7 +206,7 @@ namespace PlatformApiTests.Controllers
         public async Task DeleteRole_ReturnsBadRequest_WhenDeleteFails()
         {
             // Arrange
-            var roleId = "role1";
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000001").ToString();
 
             _mockPermissionService.Setup(x => x.DeleteRole(roleId))
                 .ReturnsAsync(false);
@@ -220,7 +223,7 @@ namespace PlatformApiTests.Controllers
         public async Task DeleteRole_ReturnsNotFound_WhenRoleDoesNotExist()
         {
             // Arrange
-            var roleId = "nonexistent";
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000010").ToString();
 
             _mockPermissionService.Setup(x => x.DeleteRole(roleId))
                 .ThrowsAsync(new NotFoundException());
@@ -248,7 +251,7 @@ namespace PlatformApiTests.Controllers
                 new PermissionDto { Code = "perm2", Description = "Permission 2" }
             };
 
-            _mockPermissionService.Setup(x => x.GetAllPermissions())
+            _mockPermissionService.Setup(x => x.GetAllPermissions(It.IsAny<int?>()))
                 .ReturnsAsync(permissions);
 
             _mockMapper.Setup(x => x.Map<IEnumerable<PermissionDto>>(permissions))
@@ -495,6 +498,108 @@ namespace PlatformApiTests.Controllers
 
             // Assert
             Assert.IsType<NotFoundResult>(result);
+        }
+        
+        [Fact]
+        public async Task AddPermissionToRole_ReturnsOkResult_WithUpdatedRole()
+        {
+            // Arrange
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000001").ToString();
+            var permissionCode = "perm1";
+            var role = new Role { Id = Guid.Parse(roleId), Name = "Admin", Scope = RoleScope.Tenant };
+            var roleDto = new RoleDto { Id = roleId, Name = "Admin" };
+
+            _mockPermissionService.Setup(x => x.AddPermissionToRole(roleId, permissionCode))
+                .ReturnsAsync(role);
+
+            _mockMapper.Setup(x => x.Map<RoleDto>(role))
+                .Returns(roleDto);
+
+            // Act
+            var result = await _controller.AddPermissionToRole(roleId, permissionCode);
+
+            // Assert
+            var okResult = Assert.IsType<OkObjectResult>(result.Result);
+            var returnedRole = Assert.IsType<RoleDto>(okResult.Value);
+            Assert.Equal(roleId, returnedRole.Id);
+        }
+
+        [Fact]
+        public async Task AddPermissionToRole_ReturnsNotFound_WhenRoleOrPermissionNotFound()
+        {
+            // Arrange
+            var roleId = "nonexistent";
+            var permissionCode = "perm1";
+
+            _mockPermissionService.Setup(x => x.AddPermissionToRole(roleId, permissionCode))
+                .ThrowsAsync(new NotFoundException("Role not found"));
+
+            // Act
+            var result = await _controller.AddPermissionToRole(roleId, permissionCode);
+
+            // Assert
+            var notFoundResult = Assert.IsType<NotFoundObjectResult>(result.Result);
+            Assert.Equal("Role not found", notFoundResult.Value);
+        }
+
+        [Fact]
+        public async Task AddPermissionToRole_ReturnsBadRequest_WhenInvalidDataException()
+        {
+            // Arrange
+            var roleId = "role1";
+            var permissionCode = "perm1";
+
+            _mockPermissionService.Setup(x => x.AddPermissionToRole(roleId, permissionCode))
+                .ThrowsAsync(new InvalidDataException("Permission already assigned to role"));
+
+            // Act
+            var result = await _controller.AddPermissionToRole(roleId, permissionCode);
+
+            // Assert
+            var badRequestResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+            Assert.Equal("Permission already assigned to role", badRequestResult.Value);
+        }
+
+        [Fact]
+        public async Task RemovePermissionFromRole_ReturnsOkResult_WithUpdatedRole()
+        {
+            // Arrange
+            var roleId = Guid.Parse("00000000-0000-0000-0000-000000000001").ToString();
+            var permissionCode = "perm1";
+            var role = new Role { Id = Guid.Parse(roleId), Name = "Admin", Scope = RoleScope.Tenant };
+            var roleDto = new RoleDto { Id = roleId, Name = "Admin" };
+
+            _mockPermissionService.Setup(x => x.RemovePermissionFromRole(roleId, permissionCode))
+                .ReturnsAsync(role);
+
+            _mockMapper.Setup(x => x.Map<RoleDto>(role))
+                .Returns(roleDto);
+
+            // Act
+            var result = await _controller.RemovePermissionFromRole(roleId, permissionCode);
+
+            // Assert
+            var okResult = Assert.IsType<OkObjectResult>(result.Result);
+            var returnedRole = Assert.IsType<RoleDto>(okResult.Value);
+            Assert.Equal(roleId, returnedRole.Id);
+        }
+
+        [Fact]
+        public async Task RemovePermissionFromRole_ReturnsNotFound_WhenRoleOrPermissionNotFound()
+        {
+            // Arrange
+            var roleId = "nonexistent";
+            var permissionCode = "perm1";
+
+            _mockPermissionService.Setup(x => x.RemovePermissionFromRole(roleId, permissionCode))
+                .ThrowsAsync(new NotFoundException("Role not found"));
+
+            // Act
+            var result = await _controller.RemovePermissionFromRole(roleId, permissionCode);
+
+            // Assert
+            var notFoundResult = Assert.IsType<NotFoundObjectResult>(result.Result);
+            Assert.Equal("Role not found", notFoundResult.Value);
         }
         
         

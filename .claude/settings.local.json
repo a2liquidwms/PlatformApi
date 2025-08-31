@@ -11,7 +11,14 @@
       "WebFetch(domain:www.learnrazorpages.com)",
       "WebSearch",
       "Bash(dotnet run)",
-      "Bash(dotnet run:*)"
+      "Bash(dotnet run:*)",
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/**)",
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/**)",
+      "Bash(dotnet test:*)",
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/**)",
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/PlatformStarterCommon.Core/Common/Constants/**)",
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/**)",
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/PlatformStarterCommon.Core/Common/Auth/**)"
     ],
     "deny": []
   }

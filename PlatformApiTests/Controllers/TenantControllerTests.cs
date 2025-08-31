@@ -1,9 +1,14 @@
 using AutoMapper;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Moq;
 using PlatformStarterCommon.Core.Common.Constants;
+using PlatformStarterCommon.Core.Common.Tenant;
 using PlatformApi.Controllers;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
 using PlatformApi.Services;
+using Xunit;
 
 namespace PlatformApiTests.Controllers
 {
@@ -12,6 +17,7 @@ namespace PlatformApiTests.Controllers
         private readonly Mock<ILogger<TenantController>> _loggerMock;
         private readonly Mock<IMapper> _mapperMock;
         private readonly Mock<ITenantService> _tenantServiceMock;
+        private readonly TenantHelper _tenantHelper;
         private readonly TenantController _controller;
 
         public TenantControllerTests()
@@ -19,7 +25,15 @@ namespace PlatformApiTests.Controllers
             _loggerMock = new Mock<ILogger<TenantController>>();
             _mapperMock = new Mock<IMapper>(); 
             _tenantServiceMock = new Mock<ITenantService>();
-            _controller = new TenantController(_loggerMock.Object, _mapperMock.Object, _tenantServiceMock.Object);
+            
+            // Create TenantHelper instance
+            var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
+            var mockTenantHelperLogger = new Mock<ILogger<TenantHelper>>();
+            var httpContext = new DefaultHttpContext();
+            mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
+            _tenantHelper = new TenantHelper(mockHttpContextAccessor.Object, mockTenantHelperLogger.Object);
+            
+            _controller = new TenantController(_loggerMock.Object, _mapperMock.Object, _tenantServiceMock.Object, _tenantHelper);
         }
 
         [Fact]
