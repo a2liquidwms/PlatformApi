@@ -2,8 +2,8 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PlatformApi.Data;
 
 #nullable disable
@@ -17,92 +17,30 @@ namespace PlatformApi.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.12")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+                .HasAnnotation("ProductVersion", "8.0.13")
+                .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("ConcurrencyStamp")
-                        .IsConcurrencyToken()
-                        .HasColumnType("text")
-                        .HasColumnName("concurrency_stamp");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("name");
-
-                    b.Property<string>("NormalizedName")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("normalized_name");
-
-                    b.HasKey("Id")
-                        .HasName("pk_asp_identity_roles");
-
-                    b.HasIndex("NormalizedName")
-                        .IsUnique()
-                        .HasDatabaseName("RoleNameIndex");
-
-                    b.ToTable("asp_identity_roles", (string)null);
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ClaimType")
-                        .HasColumnType("text")
-                        .HasColumnName("claim_type");
-
-                    b.Property<string>("ClaimValue")
-                        .HasColumnType("text")
-                        .HasColumnName("claim_value");
-
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("role_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_asp_identity_role_claims");
-
-                    b.HasIndex("RoleId")
-                        .HasDatabaseName("ix_asp_identity_role_claims_role_id");
-
-                    b.ToTable("asp_identity_role_claims", (string)null);
-                });
+            MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("id");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("ClaimType")
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("claim_type");
 
                     b.Property<string>("ClaimValue")
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("claim_value");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id")
@@ -117,19 +55,19 @@ namespace PlatformApi.Migrations
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
                 {
                     b.Property<string>("LoginProvider")
-                        .HasColumnType("text")
+                        .HasColumnType("varchar(255)")
                         .HasColumnName("login_provider");
 
                     b.Property<string>("ProviderKey")
-                        .HasColumnType("text")
+                        .HasColumnType("varchar(255)")
                         .HasColumnName("provider_key");
 
                     b.Property<string>("ProviderDisplayName")
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("provider_display_name");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("user_id");
 
                     b.HasKey("LoginProvider", "ProviderKey")
@@ -141,41 +79,22 @@ namespace PlatformApi.Migrations
                     b.ToTable("user_logins", (string)null);
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("role_id");
-
-                    b.HasKey("UserId", "RoleId")
-                        .HasName("pk_asp_identity_user_roles");
-
-                    b.HasIndex("RoleId")
-                        .HasDatabaseName("ix_asp_identity_user_roles_role_id");
-
-                    b.ToTable("asp_identity_user_roles", (string)null);
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
                 {
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("user_id");
 
                     b.Property<string>("LoginProvider")
-                        .HasColumnType("text")
+                        .HasColumnType("varchar(255)")
                         .HasColumnName("login_provider");
 
                     b.Property<string>("Name")
-                        .HasColumnType("text")
+                        .HasColumnType("varchar(255)")
                         .HasColumnName("name");
 
                     b.Property<string>("Value")
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("value");
 
                     b.HasKey("UserId", "LoginProvider", "Name")
@@ -188,68 +107,68 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<int>("AccessFailedCount")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("access_failed_count");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("concurrency_stamp");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .HasColumnName("email");
 
                     b.Property<bool>("EmailConfirmed")
-                        .HasColumnType("boolean")
+                        .HasColumnType("tinyint(1)")
                         .HasColumnName("email_confirmed");
 
                     b.Property<bool>("LockoutEnabled")
-                        .HasColumnType("boolean")
+                        .HasColumnType("tinyint(1)")
                         .HasColumnName("lockout_enabled");
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("lockout_end");
 
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .HasColumnName("normalized_email");
 
                     b.Property<string>("NormalizedUserName")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .HasColumnName("normalized_user_name");
 
                     b.Property<string>("PasswordHash")
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("password_hash");
 
                     b.Property<string>("PhoneNumber")
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("phone_number");
 
                     b.Property<bool>("PhoneNumberConfirmed")
-                        .HasColumnType("boolean")
+                        .HasColumnType("tinyint(1)")
                         .HasColumnName("phone_number_confirmed");
 
                     b.Property<string>("SecurityStamp")
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("security_stamp");
 
                     b.Property<bool>("TwoFactorEnabled")
-                        .HasColumnType("boolean")
+                        .HasColumnType("tinyint(1)")
                         .HasColumnName("two_factor_enabled");
 
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .HasColumnName("user_name");
 
                     b.HasKey("Id")
@@ -269,39 +188,39 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<string>("Code")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("varchar(50)")
                         .HasColumnName("code");
 
                     b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("create_date");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("create_by");
 
                     b.Property<string>("Description")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("varchar(50)")
                         .HasColumnName("description");
 
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("last_mod_by");
 
                     b.Property<DateTime?>("LastModifiedDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("last_mod_date");
 
                     b.Property<string>("ModifiedSource")
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("modify_source");
 
                     b.Property<int?>("RoleScope")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("role_scope");
 
                     b.HasKey("Code")
@@ -340,6 +259,20 @@ namespace PlatformApi.Migrations
                         },
                         new
                         {
+                            Code = "systemadmin.manage.sites",
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "SysAdmin Manage Sites",
+                            RoleScope = 1
+                        },
+                        new
+                        {
+                            Code = "admins.lookup.users",
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Admins Lookup Users",
+                            RoleScope = 1
+                        },
+                        new
+                        {
                             Code = "tenant.admin.manage.users",
                             CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Tenant Manage Users",
@@ -350,6 +283,13 @@ namespace PlatformApi.Migrations
                             Code = "tenant.manage.config",
                             CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Tenant Manage Config",
+                            RoleScope = 2
+                        },
+                        new
+                        {
+                            Code = "tenant.access.all.sites",
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Tenant Access All Sites",
                             RoleScope = 2
                         },
                         new
@@ -372,55 +312,55 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("create_date");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("create_by");
 
                     b.Property<DateTime>("Expires")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("expires");
 
                     b.Property<bool>("IsRevoked")
-                        .HasColumnType("boolean")
+                        .HasColumnType("tinyint(1)")
                         .HasColumnName("is_revoked");
 
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("last_mod_by");
 
                     b.Property<DateTime?>("LastModifiedDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("last_mod_date");
 
                     b.Property<string>("ModifiedSource")
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("modify_source");
 
                     b.Property<Guid?>("SiteId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("site_id");
 
                     b.Property<Guid?>("TenantId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("tenant_id");
 
                     b.Property<string>("Token")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("token");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id")
@@ -442,59 +382,59 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("create_date");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("create_by");
 
                     b.Property<string>("Description")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("varchar(50)")
                         .HasColumnName("description");
 
                     b.Property<bool>("IsSystemRole")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
+                        .HasColumnType("tinyint(1)")
                         .HasDefaultValue(false)
                         .HasColumnName("is_system_role");
 
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("last_mod_by");
 
                     b.Property<DateTime?>("LastModifiedDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("last_mod_date");
 
                     b.Property<string>("ModifiedSource")
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("modify_source");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .HasColumnName("name");
 
                     b.Property<int>("Scope")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("scope");
 
                     b.Property<Guid?>("SiteId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("site_id");
 
                     b.Property<Guid?>("TenantId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("tenant_id");
 
                     b.HasKey("Id")
@@ -553,40 +493,40 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("create_date");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("create_by");
 
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("last_mod_by");
 
                     b.Property<DateTime?>("LastModifiedDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("last_mod_date");
 
                     b.Property<string>("ModifiedSource")
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("modify_source");
 
                     b.Property<string>("PermissionCode")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("varchar(50)")
                         .HasColumnName("permission_code");
 
                     b.Property<Guid>("RoleId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("role_id");
 
                     b.HasKey("Id")
@@ -631,6 +571,55 @@ namespace PlatformApi.Migrations
                         },
                         new
                         {
+                            Id = new Guid("a4b5c6d7-e8f9-0123-4567-89abcdef0123"),
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionCode = "tenant.admin.manage.users",
+                            RoleId = new Guid("08dd1343-9ab2-4439-8295-da20d3e49321")
+                        },
+                        new
+                        {
+                            Id = new Guid("b5c6d7e8-f9a0-1234-5678-9abcdef01234"),
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionCode = "tenant.manage.config",
+                            RoleId = new Guid("08dd1343-9ab2-4439-8295-da20d3e49321")
+                        },
+                        new
+                        {
+                            Id = new Guid("c6d7e8f9-a0b1-2345-6789-abcdef012345"),
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionCode = "site.manage.config",
+                            RoleId = new Guid("08dd1343-9ab2-4439-8295-da20d3e49321")
+                        },
+                        new
+                        {
+                            Id = new Guid("d7e8f9a0-b1c2-3456-789a-bcdef0123456"),
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionCode = "site.manage.users",
+                            RoleId = new Guid("08dd1343-9ab2-4439-8295-da20d3e49321")
+                        },
+                        new
+                        {
+                            Id = new Guid("e8f9a0b1-c2d3-4567-89ab-cdef01234567"),
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionCode = "systemadmin.manage.sites",
+                            RoleId = new Guid("08dd1343-9ab2-4439-8295-da20d3e49321")
+                        },
+                        new
+                        {
+                            Id = new Guid("f9a0b1c2-d3e4-5678-9abc-def012345678"),
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionCode = "admins.lookup.users",
+                            RoleId = new Guid("08dd1343-9ab2-4439-8295-da20d3e49321")
+                        },
+                        new
+                        {
+                            Id = new Guid("a0b1c2d3-e4f5-6789-abcd-ef0123456789"),
+                            CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionCode = "tenant.access.all.sites",
+                            RoleId = new Guid("08dd1343-9ab2-4439-8295-da20d3e49321")
+                        },
+                        new
+                        {
                             Id = new Guid("70a47010-46a0-4a87-9f0e-b0326316e580"),
                             CreateDate = new DateTime(2024, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
                             PermissionCode = "tenant.admin.manage.users",
@@ -663,50 +652,50 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("code");
 
                     b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("create_date");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("create_by");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean")
+                        .HasColumnType("tinyint(1)")
                         .HasColumnName("is_active");
 
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("last_mod_by");
 
                     b.Property<DateTime?>("LastModifiedDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("last_mod_date");
 
                     b.Property<string>("ModifiedSource")
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("modify_source");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("name");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("tenant_id");
 
                     b.HasKey("Id")
@@ -730,48 +719,48 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("code");
 
                     b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("create_date");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("create_by");
 
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("last_mod_by");
 
                     b.Property<DateTime?>("LastModifiedDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("last_mod_date");
 
                     b.Property<string>("ModifiedSource")
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("modify_source");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("varchar(50)")
                         .HasColumnName("name");
 
                     b.Property<string>("SubDomain")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("varchar(50)")
                         .HasColumnName("sub_domain");
 
                     b.HasKey("Id")
@@ -806,20 +795,20 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<string>("LogoPath")
-                        .HasColumnType("text")
+                        .HasColumnType("longtext")
                         .HasColumnName("logo_path");
 
                     b.Property<string>("PrimaryColor")
                         .HasMaxLength(15)
-                        .HasColumnType("character varying(15)")
+                        .HasColumnType("varchar(15)")
                         .HasColumnName("primary_color");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("tenant_id");
 
                     b.HasKey("Id")
@@ -830,68 +819,76 @@ namespace PlatformApi.Migrations
                         .HasDatabaseName("ix_tenant_configs_tenant_id");
 
                     b.ToTable("tenant_configs", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f1e2d3c4-b5a6-9870-cdef-123456789abc"),
+                            PrimaryColor = "#007bff",
+                            TenantId = new Guid("baab4de5-fe68-4940-996e-5914f8234863")
+                        });
                 });
 
             modelBuilder.Entity("PlatformApi.Models.UserInvitation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("create_date");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("create_by");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
+                        .HasColumnType("varchar(255)")
                         .HasColumnName("email");
 
                     b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("expires_at");
 
                     b.Property<string>("InvitationToken")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
+                        .HasColumnType("varchar(255)")
                         .HasColumnName("invitation_token");
 
                     b.Property<bool>("IsUsed")
-                        .HasColumnType("boolean")
+                        .HasColumnType("tinyint(1)")
                         .HasColumnName("is_used");
 
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("last_mod_by");
 
                     b.Property<DateTime?>("LastModifiedDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("last_mod_date");
 
                     b.Property<string>("ModifiedSource")
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("modify_source");
 
                     b.Property<int>("Scope")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("scope");
 
                     b.Property<Guid?>("SiteId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("site_id");
 
                     b.Property<Guid?>("TenantId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("tenant_id");
 
                     b.HasKey("Id")
@@ -911,50 +908,50 @@ namespace PlatformApi.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("create_date");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("create_by");
 
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("last_mod_by");
 
                     b.Property<DateTime?>("LastModifiedDate")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime(6)")
                         .HasColumnName("last_mod_date");
 
                     b.Property<string>("ModifiedSource")
                         .HasMaxLength(25)
-                        .HasColumnType("character varying(25)")
+                        .HasColumnType("varchar(25)")
                         .HasColumnName("modify_source");
 
                     b.Property<Guid>("RoleId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("role_id");
 
                     b.Property<int>("Scope")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("scope");
 
                     b.Property<Guid?>("SiteId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("site_id");
 
                     b.Property<Guid?>("TenantId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("tenant_id");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("char(36)")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id")
@@ -975,16 +972,6 @@ namespace PlatformApi.Migrations
                     b.ToTable("user_roles", (string)null);
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
-                {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
-                        .WithMany()
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_asp_identity_role_claims_asp_identity_roles_role_id");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.HasOne("PlatformApi.Models.AuthUser", null)
@@ -1003,23 +990,6 @@ namespace PlatformApi.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_logins_users_user_id");
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
-                {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
-                        .WithMany()
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_asp_identity_user_roles_asp_identity_roles_role_id");
-
-                    b.HasOne("PlatformApi.Models.AuthUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_asp_identity_user_roles_users_user_id");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
 using PlatformApi.Data;
 using PlatformApi.Models;
@@ -9,7 +10,7 @@ public static class AuthServerExtensions
 {
     public static void ConfigureIdentity(this IServiceCollection services)
     {
-        services.AddIdentity<AuthUser, IdentityRole<Guid>>(options =>
+        services.AddIdentityCore<AuthUser>(options =>
         {
             // Password settings
             options.Password.RequiredLength = 6;
@@ -27,7 +28,8 @@ public static class AuthServerExtensions
             options.Tokens.PasswordResetTokenProvider = TokenOptions.DefaultEmailProvider;
         })
         .AddEntityFrameworkStores<PlatformDbContext>()
-        .AddDefaultTokenProviders();
+        .AddDefaultTokenProviders()
+        .AddSignInManager<SignInManager<AuthUser>>();
 
         // Configure token lifespans
         services.Configure<DataProtectionTokenProviderOptions>(options =>

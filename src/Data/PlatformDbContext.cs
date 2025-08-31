@@ -6,14 +6,14 @@ using PlatformApi.Models;
 
 namespace PlatformApi.Data;
 
-public class PlatformDbContext : IdentityDbContext<AuthUser, IdentityRole<Guid>, Guid>
+public class PlatformDbContext : IdentityUserContext<AuthUser, Guid>
 {
     public DbSet<Tenant> Tenants { get; set; }
     
     public DbSet<TenantConfig> TenantConfigs { get; set; }
     
     public DbSet<Site> Sites { get; set; }
-    public new DbSet<UserRoles> UserRoles { get; set; }
+    public DbSet<UserRoles> UserRoles { get; set; }
     
     public DbSet<Permission> Permissions { get; set; }
     
@@ -24,7 +24,7 @@ public class PlatformDbContext : IdentityDbContext<AuthUser, IdentityRole<Guid>,
     public DbSet<UserInvitation> UserInvitations { get; set; }
     
     // Custom role system (separate from Identity roles)
-    public new DbSet<Role> Roles { get; set; }
+    public DbSet<Role> Roles { get; set; }
 
     public PlatformDbContext(DbContextOptions<PlatformDbContext> options) : base(options) { }
 
@@ -37,10 +37,6 @@ public class PlatformDbContext : IdentityDbContext<AuthUser, IdentityRole<Guid>,
         builder.Entity<IdentityUserClaim<Guid>>().ToTable("user_claims");
         builder.Entity<IdentityUserLogin<Guid>>().ToTable("user_logins");
         builder.Entity<IdentityUserToken<Guid>>().ToTable("user_tokens");
-        builder.Entity<IdentityRole<Guid>>().ToTable("asp_identity_roles"); // Identity roles (unused)
-        builder.Entity<IdentityUserRole<Guid>>().ToTable("asp_identity_user_roles"); // Identity user roles (unused)
-        builder.Entity<IdentityRoleClaim<Guid>>().ToTable("asp_identity_role_claims"); // Identity role claims (unused)
-        
         
         
         // Define Site relationships

@@ -30,12 +30,12 @@ This file provides guidance to Claude Code when working with this repository.
 ## Development Commands
 
 ```bash
-# Build and run
-dotnet build
-dotnet run
+# Build and run (IMPORTANT: always use LocalNuget configuration)
+dotnet build --configuration LocalNuget
+dotnet run --configuration LocalNuget
 
 # Testing  
-dotnet test
+dotnet test --configuration LocalNuget
 ```
 
 ## Development Guidelines

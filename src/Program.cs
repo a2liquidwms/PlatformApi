@@ -5,6 +5,7 @@ using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using PlatformApi;
 using PlatformApi.Data;
+using PlatformApi.Data.SeedData;
 using PlatformApi.Middleware;
 using PlatformApi.Services;
 using PlatformStarterCommon.Core.Common.Auth;
@@ -27,7 +28,7 @@ builder.ConfigureLogging();
 var connectionString = builder.Configuration["DBCONNECTION_AUTH"];
 builder.Services.AddDbContext<PlatformDbContext>(options =>
     {
-        options.UseNpgsql(connectionString);
+        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
         options.UseSnakeCaseNamingConvention();
     }
 );
@@ -96,6 +97,7 @@ builder.Services.AddScoped<IBrandingService, BrandingService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailContentService, EmailContentService>();
 builder.Services.AddScoped<IEmailService, EmailAwsSesService>();
+builder.Services.AddScoped<IInitialDataService, InitialDataService>();
 // Register SNS service conditionally based on configuration
 var snsEnabled = builder.Configuration.GetValue<bool>("AWS_SNS_ENABLED", true);
 if (snsEnabled)
@@ -116,6 +118,13 @@ else
 
 
 var app = builder.Build();
+
+// Ensure initial data is created
+using (var scope = app.Services.CreateScope())
+{
+    var initialDataService = scope.ServiceProvider.GetRequiredService<IInitialDataService>();
+    await initialDataService.EnsureInitialAdminUserAsync();
+}
 
 // Add correlation ID middleware (must be early in pipeline)
 app.UseMiddleware<CorrelationIdMiddleware>();

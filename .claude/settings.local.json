@@ -18,7 +18,9 @@
       "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/**)",
       "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/PlatformStarterCommon.Core/Common/Constants/**)",
       "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/**)",
-      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/PlatformStarterCommon.Core/Common/Auth/**)"
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/PlatformStarterCommon.Core/Common/Auth/**)",
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/**)",
+      "Read(/Users/a2ron44/Projects/StarterPlatformApp/Engineering/code/PlatformStarterCommon/**)"
     ],
     "deny": []
   }
