@@ -50,63 +50,55 @@ public class UserService : IUserService
     {
         _logger.LogDebug("Getting tenant users for tenant {TenantId}", tenantId);
         
-        // Get all users with tenant-scoped roles for this tenant
+        // Get all users with tenant-scoped roles for this tenant in a single optimized query
         var usersWithRoles = await _context.UserRoles
             .Where(ur => ur.TenantId == tenantId && ur.Scope == RoleScope.Tenant)
             .Include(ur => ur.User)
-            .GroupBy(ur => ur.User)
+            .Include(ur => ur.Role)
+            .Where(ur => ur.User != null && ur.User.Email != null)
+            .GroupBy(ur => ur.UserId)
+            .Select(g => new TenantUserWithRolesDto
+            {
+                UserId = g.Key,
+                Email = g.First().User!.Email!,
+                Roles = g.Select(ur => new RoleNoPermissionDto
+                {
+                    Id = ur.Role!.Id.ToString(),
+                    Name = ur.Role.Name
+                }).ToList()
+            })
             .ToListAsync();
 
-        var result = new List<TenantUserWithRolesDto>();
-        
-        foreach (var userGroup in usersWithRoles)
-        {
-            var user = userGroup.Key!;
-            var roles = await GetUserRoles(user.Id, RoleScope.Tenant, tenantId);
-            var roleNoPerm = _mapper.Map<List<RoleNoPermissionDto>>(roles);
-            
-            result.Add(new TenantUserWithRolesDto
-            {
-                UserId = user.Id,
-                Email = user.Email!,
-                Roles = roleNoPerm
-            });
-        }
-
-        _logger.LogDebug("Found {UserCount} users with tenant roles for tenant {TenantId}", result.Count, tenantId);
-        return result;
+        _logger.LogDebug("Found {UserCount} users with tenant roles for tenant {TenantId}", usersWithRoles.Count, tenantId);
+        return usersWithRoles;
     }
 
     public async Task<IEnumerable<SiteUserWithRolesDto>> GetSiteUsers(Guid siteId)
     {
         _logger.LogDebug("Getting site users for site {SiteId}", siteId);
         
-        // Get all users with site-scoped roles for this site
+        // Get all users with site-scoped roles for this site in a single optimized query
         var usersWithRoles = await _context.UserRoles
             .Where(ur => ur.SiteId == siteId && ur.Scope == RoleScope.Site)
             .Include(ur => ur.User)
-            .GroupBy(ur => ur.User)
+            .Include(ur => ur.Role)
+            .Where(ur => ur.User != null && ur.User.Email != null)
+            .GroupBy(ur => ur.UserId)
+            .Select(g => new SiteUserWithRolesDto
+            {
+                UserId = g.Key,
+                Email = g.First().User!.Email!,
+                SiteId = siteId,
+                Roles = g.Select(ur => new RoleNoPermissionDto
+                {
+                    Id = ur.Role!.Id.ToString(),
+                    Name = ur.Role.Name
+                }).ToList()
+            })
             .ToListAsync();
 
-        var result = new List<SiteUserWithRolesDto>();
-        
-        foreach (var userGroup in usersWithRoles)
-        {
-            var user = userGroup.Key!;
-            var roles = await GetUserRoles(user.Id, RoleScope.Site, siteId: siteId);
-            var roleNoPerm = _mapper.Map<List<RoleNoPermissionDto>>(roles);
-            
-            result.Add(new SiteUserWithRolesDto
-            {
-                UserId = user.Id,
-                Email = user.Email!,
-                SiteId = siteId,
-                Roles = roleNoPerm
-            });
-        }
-
-        _logger.LogDebug("Found {UserCount} users with site roles for site {SiteId}", result.Count, siteId);
-        return result;
+        _logger.LogDebug("Found {UserCount} users with site roles for site {SiteId}", usersWithRoles.Count, siteId);
+        return usersWithRoles;
     }
 
     public async Task<IEnumerable<InternalUserWithRolesDto>> GetInternalUsers()
