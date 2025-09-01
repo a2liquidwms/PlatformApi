@@ -37,7 +37,7 @@ public class AuthController : ControllerBase
         // Set refresh token as HttpOnly cookie
         if (!string.IsNullOrEmpty(tokenBundle.RefreshToken))
         {
-            this.SetRefreshTokenCookie(tokenBundle.RefreshToken, _configuration, _environment);
+            this.SetRefreshTokenCookie(tokenBundle.RefreshToken, _configuration, _environment, _logger);
         }
         
         // Return response with or without refresh token based on API testing header
@@ -109,7 +109,7 @@ public class AuthController : ControllerBase
             var userId = _userHelper.GetCurrentUserId();
             
             // Clear the refresh token cookie
-            this.ClearRefreshTokenCookie(_configuration);
+            this.ClearRefreshTokenCookie(_configuration, _environment, _logger);
             
             // Revoke ALL refresh tokens for this user (logout everywhere)
             await _authService.Logout(userId);
@@ -120,7 +120,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Error during logout for user {UserId}", _userHelper.GetCurrentUserId());
             // Still clear the cookie even if database operation fails
-            this.ClearRefreshTokenCookie(_configuration);
+            this.ClearRefreshTokenCookie(_configuration, _environment, _logger);
             return Ok(new { Message = "Logged out successfully from all devices" });
         }
     }
@@ -355,7 +355,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogWarning("Token refresh failed: {Error}", ex.Message);
             // Clear the refresh token cookie if refresh failed
-            this.ClearRefreshTokenCookie(_configuration);
+            this.ClearRefreshTokenCookie(_configuration, _environment, _logger);
             return Unauthorized("Invalid or Expired token");
         }
     }

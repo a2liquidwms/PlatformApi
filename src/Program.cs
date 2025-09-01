@@ -28,7 +28,7 @@ builder.ConfigureLogging();
 var connectionString = builder.Configuration["DBCONNECTION_AUTH"];
 builder.Services.AddDbContext<PlatformDbContext>(options =>
     {
-        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+        options.UseNpgsql(connectionString);
         options.UseSnakeCaseNamingConvention();
     }
 );

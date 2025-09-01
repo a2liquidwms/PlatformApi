@@ -6,17 +6,22 @@ public static class CookieHelpers
 {
     private const string RefreshTokenCookieName = "refreshToken";
     
-    public static void SetRefreshTokenCookie(this ControllerBase controller, string refreshToken, IConfiguration configuration, IWebHostEnvironment environment)
+    public static void SetRefreshTokenCookie(this ControllerBase controller, string refreshToken, IConfiguration configuration, IWebHostEnvironment environment, ILogger? logger = null)
     {
+        var isSafari = IsSafariBrowser(controller.Request);
+        
         var cookieOptions = new CookieOptions
         {
             HttpOnly = true,
             Secure = !environment.IsDevelopment(), // false for dev (HTTP), true for prod (HTTPS)
-            SameSite = environment.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict, // Lax for dev/Safari, Strict for prod
+            SameSite = isSafari ? SameSiteMode.None : (environment.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict),
             Expires = DateTime.UtcNow.AddDays(GetRefreshTokenExpiryDays(configuration)),
             Path = "/",
             Domain = GetCookieDomain(configuration)
         };
+        
+        logger?.LogInformation("Setting cookie for Safari: {IsSafari}, SameSite: {SameSite}, Secure: {Secure}, Domain: {Domain}", 
+            isSafari, cookieOptions.SameSite, cookieOptions.Secure, cookieOptions.Domain);
         
         controller.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, cookieOptions);
     }
@@ -26,13 +31,15 @@ public static class CookieHelpers
         return controller.Request.Cookies[RefreshTokenCookieName];
     }
     
-    public static void ClearRefreshTokenCookie(this ControllerBase controller, IConfiguration configuration)
+    public static void ClearRefreshTokenCookie(this ControllerBase controller, IConfiguration configuration, IWebHostEnvironment environment, ILogger? logger = null)
     {
+        var isSafari = IsSafariBrowser(controller.Request);
+        
         var cookieOptions = new CookieOptions
         {
             HttpOnly = true,
             Secure = false, // Use false for clearing to ensure it works in both dev and prod
-            SameSite = SameSiteMode.Lax,
+            SameSite = isSafari ? SameSiteMode.None : SameSiteMode.Lax,
             Expires = DateTime.UtcNow.AddDays(-1), // Expire immediately
             Path = "/",
             Domain = GetCookieDomain(configuration)
@@ -45,6 +52,16 @@ public static class CookieHelpers
     {
         return controller.Request.Headers.ContainsKey("X-HTTP-API");
     }
+    
+    
+    private static bool IsSafariBrowser(HttpRequest request)
+    {
+        var userAgent = request.Headers["User-Agent"].ToString();
+        // Safari contains "Safari" but not "Chrome" (since Chrome also contains "Safari")
+        return userAgent.Contains("Safari", StringComparison.OrdinalIgnoreCase) && 
+               !userAgent.Contains("Chrome", StringComparison.OrdinalIgnoreCase);
+    }
+    
     
     private static string? GetCookieDomain(IConfiguration configuration)
     {
