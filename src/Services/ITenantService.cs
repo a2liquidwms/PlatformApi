@@ -12,6 +12,7 @@ public interface ITenantService
     
     Task<TenantConfig?> GetTenantConfigById(Guid tenantId);
     Task<TenantConfig?> GetTenantConfigBySubdomain(string subdomain);
+    Task<TenantConfig> AddTenantConfig(Guid tenantId, TenantConfig obj);
     Task<bool> UpdateTenantConfig(Guid tenantId, TenantConfig obj);
     
     Task<Site?> GetSiteById(Guid id);

@@ -47,6 +47,13 @@ public class TenantService : ITenantService
         
         _logger.LogInformation("Tenant {TenantName} created successfully with ID {TenantId}", obj.Name, obj.Id);
         
+        // Create default tenant config
+        var defaultTenantConfig = new TenantConfig
+        {
+            TenantId = obj.Id
+        };
+        await AddTenantConfig(obj.Id, defaultTenantConfig);
+        
         // Publish tenant-created message
         var tenantCreatedMessage = new TenantCreatedMessage
         {
@@ -59,7 +66,8 @@ public class TenantService : ITenantService
         // Invalidate all user tenant caches since a new tenant was added
         await _cacheService.InvalidateAllCachedUserTenantsAsync();
         
-        return obj;
+        // Return clean tenant object to avoid circular reference
+        return await GetById(obj.Id) ?? obj;
     }
 
     public async Task<bool> Update(Guid id, Tenant obj)
@@ -80,6 +88,17 @@ public class TenantService : ITenantService
 
         _context.Tenants.Update(obj);
         await _uow.CompleteAsync();
+        
+        // Ensure tenant config exists (create if missing)
+        var existingConfig = await GetTenantConfigById(id);
+        if (existingConfig == null)
+        {
+            var defaultTenantConfig = new TenantConfig
+            {
+                TenantId = id
+            };
+            await AddTenantConfig(id, defaultTenantConfig);
+        }
         
         _logger.LogInformation("Tenant {TenantId} updated successfully", id);
         
@@ -129,6 +148,27 @@ public class TenantService : ITenantService
             .AsNoTracking()
             .Include(tc => tc.Tenant)
             .FirstOrDefaultAsync(tc => tc.Tenant != null && tc.Tenant.SubDomain.ToLower() == subdomain);
+    }
+    
+    public async Task<TenantConfig> AddTenantConfig(Guid tenantId, TenantConfig obj)
+    {
+        if (tenantId != obj.TenantId)
+        {
+            _logger.LogWarning("Invalid tenant ID mismatch for tenant config creation: provided {ProvidedId}, object {ObjectId}", tenantId, obj.TenantId);
+            throw new InvalidDataException(ErrorMessages.KeyNotMatch);
+        }
+        
+        var existingTenant = await GetById(tenantId);
+        if (existingTenant == null)
+        {
+            throw new NotFoundException();
+        }
+        
+        _context.TenantConfigs.Add(obj);
+        await _uow.CompleteAsync();
+        
+        _logger.LogInformation("Tenant config created successfully for tenant {TenantId}", obj.TenantId);
+        return obj;
     }
     
     public async Task<bool> UpdateTenantConfig(Guid tenantId, TenantConfig obj)
