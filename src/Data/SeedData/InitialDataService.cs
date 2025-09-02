@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using PlatformApi.Models;
 using PlatformStarterCommon.Core.Common.Services;
 
@@ -28,6 +29,17 @@ public class InitialDataService : IInitialDataService
 
     public async Task EnsureInitialAdminUserAsync()
     {
+        // Check if database has been migrated by checking if there are no pending migrations
+        var pendingMigrations = await _context.Database.GetPendingMigrationsAsync();
+        var hasMigrated = !pendingMigrations.Any();
+        
+        if (!hasMigrated)
+        {
+            _logger.LogInformation("Database not fully migrated yet. Skipping initial data seeding.");
+            return;
+        }
+        
+        
         var existingUser = await _userManager.FindByEmailAsync(INITIAL_ADMIN_EMAIL);
         if (existingUser != null) return;
 

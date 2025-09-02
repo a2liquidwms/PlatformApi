@@ -145,8 +145,6 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 
 app.MapHealthChecks("/health");
 
-app.UseStaticFiles(); // Enable serving static files (CSS, etc.)
-
 app.ConfigureCors();  // common services
 
 //if using auth
