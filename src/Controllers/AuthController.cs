@@ -340,7 +340,7 @@ public class AuthController : ControllerBase
         try
         {
             // only looks at cookie.  No current way to handle refresh via Postman 
-            var refreshToken = this.GetRefreshTokenFromCookie();
+            var refreshToken = this.GetRefreshTokenFromCookie(_configuration);
             
             if (string.IsNullOrEmpty(refreshToken))
             {

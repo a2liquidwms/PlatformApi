@@ -62,7 +62,6 @@
 
   <ItemGroup>
     <Folder Include="Migrations\" />
-    <Folder Include="Models\BaseModels\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -4,7 +4,12 @@ namespace PlatformApi.Middleware;
 
 public static class CookieHelpers
 {
-    private const string RefreshTokenCookieName = "refreshToken";
+    private const string DefaultRefreshTokenCookieName = "PlatRefreshToken";
+    
+    private static string GetRefreshTokenCookieName(IConfiguration configuration)
+    {
+        return configuration["AUTH_COOKIE_NAME"] ?? DefaultRefreshTokenCookieName;
+    }
     
     public static void SetRefreshTokenCookie(this ControllerBase controller, string refreshToken, IConfiguration configuration, IWebHostEnvironment environment, ILogger? logger = null)
     {
@@ -23,12 +28,14 @@ public static class CookieHelpers
         logger?.LogInformation("Setting cookie for Safari: {IsSafari}, SameSite: {SameSite}, Secure: {Secure}, Domain: {Domain}", 
             isSafari, cookieOptions.SameSite, cookieOptions.Secure, cookieOptions.Domain);
         
-        controller.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, cookieOptions);
+        var cookieName = GetRefreshTokenCookieName(configuration);
+        controller.Response.Cookies.Append(cookieName, refreshToken, cookieOptions);
     }
     
-    public static string? GetRefreshTokenFromCookie(this ControllerBase controller)
+    public static string? GetRefreshTokenFromCookie(this ControllerBase controller, IConfiguration configuration)
     {
-        return controller.Request.Cookies[RefreshTokenCookieName];
+        var cookieName = GetRefreshTokenCookieName(configuration);
+        return controller.Request.Cookies[cookieName];
     }
     
     public static void ClearRefreshTokenCookie(this ControllerBase controller, IConfiguration configuration, IWebHostEnvironment environment, ILogger? logger = null)
@@ -45,7 +52,8 @@ public static class CookieHelpers
             Domain = GetCookieDomain(configuration)
         };
         
-        controller.Response.Cookies.Append(RefreshTokenCookieName, string.Empty, cookieOptions);
+        var cookieName = GetRefreshTokenCookieName(configuration);
+        controller.Response.Cookies.Append(cookieName, string.Empty, cookieOptions);
     }
     
     public static bool HasApiTestingHeader(this ControllerBase controller)

@@ -41,7 +41,7 @@ public class TenantService : ITenantService
 
     public async Task<Tenant> Add(Tenant obj)
     {
-        obj.SubDomain = obj.SubDomain.ToLower();
+        if (obj.SubDomain != null) obj.SubDomain = obj.SubDomain.ToLower();
         _context.Tenants.Add(obj);
         await _uow.CompleteAsync();
         
@@ -84,7 +84,8 @@ public class TenantService : ITenantService
         {
             throw new NotFoundException();
         }
-        obj.SubDomain = obj.SubDomain.ToLower();
+
+        if (obj.SubDomain != null) obj.SubDomain = obj.SubDomain.ToLower();
 
         _context.Tenants.Update(obj);
         await _uow.CompleteAsync();
@@ -147,7 +148,7 @@ public class TenantService : ITenantService
         return await _context.TenantConfigs
             .AsNoTracking()
             .Include(tc => tc.Tenant)
-            .FirstOrDefaultAsync(tc => tc.Tenant != null && tc.Tenant.SubDomain.ToLower() == subdomain);
+            .FirstOrDefaultAsync(tc => tc.Tenant != null && tc.Tenant.SubDomain != null && tc.Tenant.SubDomain.ToLower() == subdomain);
     }
     
     public async Task<TenantConfig> AddTenantConfig(Guid tenantId, TenantConfig obj)
