@@ -39,6 +39,19 @@ public class TenantService : ITenantService
         return await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
     }
 
+    public async Task<TenantConfig?> GetTenantConfigByCode(string code)
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            throw new ArgumentException("Code cannot be null or empty", nameof(code));
+        }
+        
+        return await _context.TenantConfigs
+            .AsNoTracking()
+            .Include(tc => tc.Tenant)
+            .FirstOrDefaultAsync(tc => tc.Tenant != null && tc.Tenant.Code.ToLower() == code.ToLower());
+    }
+
     public async Task<Tenant> Add(Tenant obj)
     {
         if (obj.SubDomain != null) obj.SubDomain = obj.SubDomain.ToLower();

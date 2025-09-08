@@ -57,6 +57,35 @@ public class TenantController : ControllerBase
         }
     }
     
+    [AllowAnonymous]
+    [HttpGet("config/code/{code}")]
+    public async Task<ActionResult<TenantConfigDto>> GetTenantConfigByCode(string code)
+    {
+        try
+        {
+            var config = await _tenantService.GetTenantConfigByCode(code);
+            
+            if (config == null)
+            {
+                return NotFound();
+            }
+            
+            var tenantConfigDto = _mapper.Map<TenantConfigDto>(config);
+            tenantConfigDto.SubDomain = config.Tenant!.SubDomain;
+            tenantConfigDto.TenantName = config.Tenant!.Name;
+
+            return Ok(tenantConfigDto);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (NotFoundException)
+        {
+            return NotFound();
+        }
+    }
+    
     [RequirePermission(RolePermissionConstants.SysAdminManageTenants)]
     [HttpPost]
     public async Task<ActionResult<TenantDto>> Add(TenantDto objDto)

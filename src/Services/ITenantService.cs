@@ -6,6 +6,7 @@ public interface ITenantService
 {
     Task<IEnumerable<Tenant>> GetAll();
     Task<Tenant?> GetById(Guid id);
+    Task<TenantConfig?> GetTenantConfigByCode(string code);
     Task<Tenant> Add(Tenant obj);
     Task<bool> Update(Guid id, Tenant obj);
     Task<bool> Delete(Guid id);
