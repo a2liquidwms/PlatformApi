@@ -6,7 +6,7 @@ public class TenantConfigDto
 
     public required Guid TenantId { get; set; }
 
-    public required string SubDomain { get; set; }
+    public string? SubDomain { get; set; }
 
     public string? TenantName { get; set; }
 

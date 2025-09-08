@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
 
@@ -31,6 +32,9 @@ public interface IUserService
     // User membership validation
     Task<bool> HasTenantAccess(Guid userId, Guid tenantId, bool forLogin = false);
     Task<bool> HasSiteAccess(Guid userId, Guid siteId, Guid tenantId, bool forLogin = false);
+    
+    // User creation
+    Task<IdentityResult> CreateUserAsync(AuthUser user, string? password = null);
     
     // User invitation methods
     Task<InvitationResponse> InviteUserAsync(InviteUserRequest request, RoleScope expectedScope, string invitedByUserId);

@@ -25,6 +25,7 @@ public class UserServiceTests : IDisposable
     private readonly Mock<ICacheService> _mockCache;
     private readonly Mock<IEmailContentService> _mockEmailContentService;
     private readonly Mock<IEmailService> _mockEmailService;
+    private readonly Mock<ISnsService> _mockSnsService;
     private readonly UserService _userService;
 
     public UserServiceTests()
@@ -48,6 +49,7 @@ public class UserServiceTests : IDisposable
         _mockCache = new Mock<ICacheService>();
         _mockEmailContentService = new Mock<IEmailContentService>();
         _mockEmailService = new Mock<IEmailService>();
+        _mockSnsService = new Mock<ISnsService>();
 
         _userService = new UserService(
             _context,
@@ -58,7 +60,8 @@ public class UserServiceTests : IDisposable
             _mockPermissionHelper.Object,
             _mockCache.Object,
             _mockEmailContentService.Object,
-            _mockEmailService.Object
+            _mockEmailService.Object,
+            _mockSnsService.Object
         );
     }
 

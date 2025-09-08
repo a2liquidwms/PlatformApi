@@ -58,20 +58,12 @@ public class AuthService : IAuthService
     // Overload for Register with branding context
     public async Task<IdentityResult> Register(AuthUser user, string password, string? subdomain = null, Guid? tenantId = null, string? returnUrl = null)
     {
-        var result = await _userManager.CreateAsync(user, password);
+        var result = await _userService.CreateUserAsync(user, password);
         
         if (result.Succeeded)
         {
             // Send email confirmation with branding context
             await SendEmailConfirmationAsync(user.Email!, subdomain, tenantId, returnUrl);
-            
-            // Publish user-created message
-            var userCreatedMessage = new UserCreatedMessage
-            {
-                UserId = user.Id.ToString(),
-                Email = user.Email!
-            };
-            await _snsService.PublishUserCreatedAsync(userCreatedMessage);
         }
 
         return result;
@@ -900,7 +892,7 @@ public class AuthService : IAuthService
             EmailConfirmed = true // Email is confirmed via invitation
         };
 
-        var createResult = await _userManager.CreateAsync(newUser, request.Password);
+        var createResult = await _userService.CreateUserAsync(newUser, request.Password);
         if (!createResult.Succeeded)
         {
             return createResult;
@@ -917,14 +909,6 @@ public class AuthService : IAuthService
         // Send welcome email
         var welcomeEmailContent = await _emailContentService.PrepareWelcomeEmailAsync(newUser.Email!, newUser.UserName ?? newUser.Email!, invitation.TenantId);
         await _emailService.SendEmailAsync(welcomeEmailContent);
-
-        // Publish user-created message
-        var userCreatedMessage = new UserCreatedMessage
-        {
-            UserId = newUser.Id.ToString(),
-            Email = newUser.Email!
-        };
-        await _snsService.PublishUserCreatedAsync(userCreatedMessage);
 
         return IdentityResult.Success;
     }

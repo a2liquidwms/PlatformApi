@@ -13,6 +13,6 @@ public class TenantDto
     public required string Name { get; set; }
     
     [StringLength(50)]
-    public required string SubDomain { get; set; }
+    public string? SubDomain { get; set; }
     
 }

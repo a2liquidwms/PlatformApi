@@ -7,6 +7,7 @@ using PlatformStarterCommon.Core.Common.Services;
 using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
+using PlatformApi.Models.Messages;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -23,6 +24,7 @@ public class UserService : IUserService
     private readonly ICacheService _cache;
     private readonly IEmailContentService _emailContentService;
     private readonly IEmailService _emailService;
+    private readonly ISnsService _snsService;
 
     public UserService(
         PlatformDbContext context,
@@ -33,7 +35,8 @@ public class UserService : IUserService
         PermissionHelper permissionHelper,
         ICacheService cache,
         IEmailContentService emailContentService,
-        IEmailService emailService)
+        IEmailService emailService,
+        ISnsService snsService)
     {
         _context = context;
         _userManager = userManager;
@@ -44,6 +47,36 @@ public class UserService : IUserService
         _cache = cache;
         _emailContentService = emailContentService;
         _emailService = emailService;
+        _snsService = snsService;
+    }
+
+    public async Task<IdentityResult> CreateUserAsync(AuthUser user, string? password = null)
+    {
+        _logger.LogDebug("Creating user {Email} with password: {HasPassword}", user.Email, password != null);
+        
+        var result = password == null 
+            ? await _userManager.CreateAsync(user)
+            : await _userManager.CreateAsync(user, password);
+        
+        if (result.Succeeded)
+        {
+            _logger.LogInformation("Successfully created user {Email}", user.Email);
+            
+            // Publish user-created message
+            var userCreatedMessage = new UserCreatedMessage
+            {
+                UserId = user.Id.ToString(),
+                Email = user.Email!
+            };
+            await _snsService.PublishUserCreatedAsync(userCreatedMessage);
+        }
+        else
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            _logger.LogWarning("Failed to create user {Email}: {Errors}", user.Email, errors);
+        }
+        
+        return result;
     }
 
     public async Task<IEnumerable<TenantUserWithRolesDto>> GetTenantUsers(Guid tenantId)
@@ -260,7 +293,7 @@ public class UserService : IUserService
             NormalizedUserName = email.ToUpper()
         };
 
-        var result = await _userManager.CreateAsync(placeholderUser);
+        var result = await CreateUserAsync(placeholderUser);
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));

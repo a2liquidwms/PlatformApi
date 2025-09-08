@@ -36,7 +36,7 @@ public class BrandingServiceTests
         Assert.Equal("Platform", result.SiteName);
         Assert.Equal("", result.LogoPath);
         Assert.Equal("#1d86f8", result.PrimaryColor);
-        Assert.Equal("", result.SubDomain);
+        Assert.Null(result.SubDomain);
         Assert.Null(result.TenantId);
         Assert.Equal("http://example.com", result.BaseUrl);
         Assert.Equal("Platform Auth", result.EmailFromName);
@@ -217,5 +217,38 @@ public class BrandingServiceTests
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task GetBrandingContextAsync_WithBrandedTenantButNullSubdomain_ReturnsDefaultBaseUrl()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenantConfig = new TenantConfig
+        {
+            TenantId = tenantId,
+            LogoPath = "/logos/tenant.png",
+            PrimaryColor = "#ff5722",
+            Tenant = new Tenant
+            {
+                Id = tenantId,
+                Code = "TEST001",
+                Name = "Test Tenant",
+                SubDomain = null
+            }
+        };
+
+        _mockTenantService.Setup(x => x.GetTenantConfigById(tenantId))
+            .ReturnsAsync(tenantConfig);
+
+        var result = await _brandingService.GetBrandingContextAsync(null, tenantId);
+
+        Assert.NotNull(result);
+        Assert.Equal("Test Tenant", result.SiteName);
+        Assert.Equal("/logos/tenant.png", result.LogoPath);
+        Assert.Equal("#ff5722", result.PrimaryColor);
+        Assert.Null(result.SubDomain);
+        Assert.Equal(tenantId, result.TenantId);
+        Assert.Equal("http://example.com", result.BaseUrl);
+        Assert.Equal("Test Tenant", result.EmailFromName);
     }
 }

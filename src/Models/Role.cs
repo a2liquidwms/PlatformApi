@@ -9,6 +9,7 @@ namespace PlatformApi.Models;
 [Index(nameof(TenantId))]
 [Index(nameof(Scope))]
 [Index(nameof(TenantId), nameof(Scope))]
+[Index(nameof(TenantId), nameof(Name), IsUnique = true)]
 [Index(nameof(SiteId))]
 public class Role : BaseObject
 {

@@ -103,7 +103,7 @@ namespace PlatformApiTests.Services
             var password = "Password123!";
             var tenantId = Guid.NewGuid();
 
-            _mockUserManager.Setup(x => x.CreateAsync(user, password))
+            _mockUserService.Setup(x => x.CreateUserAsync(user, password))
                 .ReturnsAsync(IdentityResult.Success);
 
             _mockEmailContentService.Setup(x => x.PrepareEmailConfirmationAsync(
@@ -124,8 +124,7 @@ namespace PlatformApiTests.Services
 
             // Assert
             Assert.True(result.Succeeded);
-            _mockUserManager.Verify(x => x.CreateAsync(user, password), Times.Once);
-            _mockSnsService.Verify(x => x.PublishUserCreatedAsync(It.IsAny<UserCreatedMessage>()), Times.Once);
+            _mockUserService.Verify(x => x.CreateUserAsync(user, password), Times.Once);
         }
 
         [Fact]
@@ -136,7 +135,7 @@ namespace PlatformApiTests.Services
             var password = "weak";
             var identityError = new IdentityError { Code = "PasswordTooWeak", Description = "Password is too weak" };
 
-            _mockUserManager.Setup(x => x.CreateAsync(user, password))
+            _mockUserService.Setup(x => x.CreateUserAsync(user, password))
                 .ReturnsAsync(IdentityResult.Failed(identityError));
 
             // Act
@@ -145,7 +144,6 @@ namespace PlatformApiTests.Services
             // Assert
             Assert.False(result.Succeeded);
             Assert.Contains(result.Errors, e => e.Code == "PasswordTooWeak");
-            _mockSnsService.Verify(x => x.PublishUserCreatedAsync(It.IsAny<UserCreatedMessage>()), Times.Never);
         }
 
         #endregion

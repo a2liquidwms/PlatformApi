@@ -20,7 +20,7 @@ public class Tenant : BaseObject
     public required string Name { get; set; }
     
     [StringLength(50)] 
-    public required string SubDomain { get; set; }
+    public string? SubDomain { get; set; }
     
     public TenantConfig? TenantConfig { get; set; }
     

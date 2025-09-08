@@ -78,7 +78,7 @@ public class BrandingService : IBrandingService
             SiteName = "Platform",
             LogoPath = "",
             PrimaryColor = "#1d86f8",
-            SubDomain = "", // default subdomain
+            SubDomain = null, 
             TenantId = null,
             BaseUrl = GetBaseUrl(null),
             EmailFromName = _configuration["DEFAULT_SITE_NAME"] ?? "Platform Auth"
