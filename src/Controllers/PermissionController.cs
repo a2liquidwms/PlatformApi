@@ -7,6 +7,7 @@ using PlatformApi.Data;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
 using PlatformApi.Services;
+using PlatformStarterCommon.Core.Common.Tenant;
 
 namespace PlatformApi.Controllers;
 
@@ -17,13 +18,15 @@ public class PermissionController : ControllerBase
     private readonly ILogger<PermissionController> _logger;
     private readonly IMapper _mapper;
     private readonly IPermissionService _permissionService;
+    private readonly TenantHelper _tenantHelper;
 
     public PermissionController(ILogger<PermissionController> logger,IMapper mapper,
-        IPermissionService permissionService)
+        IPermissionService permissionService, TenantHelper tenantHelper)
     {
         _logger = logger;
         _mapper = mapper;
         _permissionService = permissionService;
+        _tenantHelper = tenantHelper;
     }
     
     [AllowAnonymous]
@@ -31,6 +34,37 @@ public class PermissionController : ControllerBase
     public async Task<ActionResult<IEnumerable<RoleDto>>> GetAllRoles([FromQuery] bool includePermissions = false)
     {
         var result = await _permissionService.GetAllRoles(includePermissions);
+        
+        return Ok(_mapper.Map<IEnumerable<RoleDto>>(result));
+    }
+
+    [RequirePermission(RolePermissionConstants.SysAdminManagePermissions)]
+    [HttpGet("roles/internal")]
+    public async Task<ActionResult<IEnumerable<RoleDto>>> GetInternalRoles([FromQuery] Guid? tenantId = null)
+    {
+        var result = await _permissionService.GetRolesByScope(RoleScope.Internal, tenantId);
+        
+        return Ok(_mapper.Map<IEnumerable<RoleDto>>(result));
+    }
+
+    [RequireTenantAccess]
+    [RequirePermission(RolePermissionConstants.TenantManageUsers)]
+    [HttpGet("roles/tenant")]
+    public async Task<ActionResult<IEnumerable<RoleDto>>> GetTenantRoles()
+    {
+        var tenantId = _tenantHelper.GetTenantId();
+        var result = await _permissionService.GetRolesByScope(RoleScope.Tenant, tenantId);
+        
+        return Ok(_mapper.Map<IEnumerable<RoleDto>>(result));
+    }
+
+    [RequireTenantAccess]
+    [RequirePermission(RolePermissionConstants.SiteManagerUsers)]
+    [HttpGet("roles/site")]
+    public async Task<ActionResult<IEnumerable<RoleDto>>> GetSiteRoles()
+    {
+        var tenantId = _tenantHelper.GetTenantId();
+        var result = await _permissionService.GetRolesByScope(RoleScope.Site, tenantId);
         
         return Ok(_mapper.Map<IEnumerable<RoleDto>>(result));
     }

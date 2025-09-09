@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
 using PlatformStarterCommon.Core.Common.Constants;
+using PlatformStarterCommon.Core.Common.Tenant;
 using PlatformApi.Controllers;
 using PlatformApi.Models;
 using PlatformApi.Models.DTOs;
@@ -15,6 +16,7 @@ namespace PlatformApiTests.Controllers
         private readonly Mock<IPermissionService> _mockPermissionService;
         private readonly Mock<ILogger<PermissionController>> _mockLogger;
         private readonly Mock<IMapper> _mockMapper;
+        private readonly Mock<TenantHelper> _mockTenantHelper;
         private readonly PermissionController _controller;
 
         public PermissionControllerTests()
@@ -22,11 +24,13 @@ namespace PlatformApiTests.Controllers
             _mockPermissionService = new Mock<IPermissionService>();
             _mockLogger = new Mock<ILogger<PermissionController>>();
             _mockMapper = new Mock<IMapper>();
+            _mockTenantHelper = new Mock<TenantHelper>(Mock.Of<Microsoft.AspNetCore.Http.IHttpContextAccessor>(), Mock.Of<ILogger<TenantHelper>>());
             
             _controller = new PermissionController(
                 _mockLogger.Object,
                 _mockMapper.Object,
-                _mockPermissionService.Object);
+                _mockPermissionService.Object,
+                _mockTenantHelper.Object);
         }
 
         [Fact]

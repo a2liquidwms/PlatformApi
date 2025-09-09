@@ -22,4 +22,5 @@ public interface IPermissionService
     Task<int> AddPermissionsMulti(Permission[] objs);
     Task<List<CommonRolesPermission>> GetAllRolesWithPermissionsCached();
     void InvalidateRolePermissionCache();
+    Task<IEnumerable<Role>> GetRolesByScope(RoleScope roleScope, Guid? tenantId = null);
 }

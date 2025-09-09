@@ -419,5 +419,23 @@ public class PermissionService : IPermissionService
             _ => int.MaxValue        // Unknown scopes get lowest priority
         };
     }
+
+    public async Task<IEnumerable<Role>> GetRolesByScope(RoleScope roleScope, Guid? tenantId = null)
+    {
+        var query = _context.Roles.AsNoTracking()
+            .Where(r => r.Scope == roleScope);
+
+        if (tenantId.HasValue)
+        {
+            query = query.Where(r => r.TenantId == tenantId.Value || r.TenantId == null);
+        }
+
+        var roles = await query.ToListAsync();
+        
+        _logger.LogDebug("Retrieved {Count} roles for scope {RoleScope}{TenantFilter}", 
+            roles.Count, roleScope, tenantId.HasValue ? $" and tenant {tenantId}" : "");
+            
+        return roles;
+    }
     
 }
