@@ -2,6 +2,7 @@
 using Amazon.SimpleEmail;
 using Amazon.SimpleNotificationService;
 using DotNetEnv;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using PlatformApi;
 using PlatformApi.Data;
@@ -116,6 +117,8 @@ else
 // }).CreateLogger<StartupBase>();
 // builder.Services.AddGoogleAuthentication(builder.Configuration, logger);
 
+builder.Services
+    .AddSingleton<IAuthorizationMiddlewareResultHandler, AuthResponseHandler>();
 
 var app = builder.Build();
 
